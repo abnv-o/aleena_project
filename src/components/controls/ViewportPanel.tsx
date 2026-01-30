@@ -90,12 +90,6 @@ export function ViewportPanel() {
       />
 
       <ToggleOption
-        label="Targets"
-        checked={viewport.showTargets}
-        onChange={() => setViewportConfig({ showTargets: !viewport.showTargets })}
-      />
-
-      <ToggleOption
         label="Underwater Fog"
         checked={viewport.underwaterFog}
         onChange={() => setViewportConfig({ underwaterFog: !viewport.underwaterFog })}

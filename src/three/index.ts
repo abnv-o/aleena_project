@@ -6,5 +6,4 @@ export { PlatformModel } from './objects/PlatformModel';
 export { RayPathVisualization, RayPath2DVisualization } from './objects/RayPathVisualization';
 export { SensorCoverage } from './objects/SensorCoverage';
 export { DepthMarkers } from './objects/DepthMarkers';
-export { TargetVisualization } from './objects/TargetVisualization';
 

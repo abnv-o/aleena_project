@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Sensor, SensorReading, Detection, SonarMode } from '../types';
+import type { Sensor, SensorReading, Detection } from '../types';
 
 interface SensorState {
   sensors: Map<string, Sensor>;
@@ -7,13 +7,12 @@ interface SensorState {
   detections: Detection[];
   activeSensorId: string | null;
   maxReadingsHistory: number;
-  
+
   // Actions
-  addSensor: (sensor: Sensor) => void;
+  addSensor: (overrides?: Partial<Sensor>) => void;
   removeSensor: (id: string) => void;
   updateSensor: (id: string, updates: Partial<Sensor>) => void;
   setSensorActive: (id: string, active: boolean) => void;
-  setSensorMode: (id: string, mode: SonarMode) => void;
   setActiveSensor: (id: string | null) => void;
   addReading: (reading: SensorReading) => void;
   addDetection: (detection: Detection) => void;
@@ -22,42 +21,52 @@ interface SensorState {
   resetSensors: () => void;
 }
 
-const createDefaultSensor = (): Sensor => ({
-  id: `sensor-${Date.now()}`,
-  name: 'Hull-Mounted Sonar',
-  type: 'active',
-  mode: 'search',
-  frequency: 3500,
-  bandwidth: 500,
-  sourceLevel: 220,
-  beamPattern: {
-    horizontalWidth: 120,
-    verticalWidth: 20,
-    sidelobeLevel: -20,
-  },
-  mountPosition: { x: 0, y: 0, z: 0 },
-  orientation: { x: 0, y: 0, z: 0 },
-  pulseLength: 0.1,
-  pingInterval: 5,
-  maxRange: 10000,
-  detectionThreshold: 10,
-  directivityIndex: 20,
-  isActive: true,
-  lastPingTime: 0,
-});
+function createNewSensor(overrides?: Partial<Sensor>): Sensor {
+  const id = `sensor-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  const count = 1; // Caller can pass name in overrides
+  return {
+    id,
+    name: overrides?.name ?? `Sensor ${count}`,
+    type: 'active',
+    frequency: 3500,
+    bandwidth: 500,
+    sourceLevel: 220,
+    beamPattern: {
+      horizontalWidth: 120,
+      verticalWidth: 20,
+      verticalBeamAngle: 45,
+      sidelobeLevel: -20,
+    },
+    mountPosition: { x: 0, y: 0, z: 0 },
+    orientation: { x: 0, y: 0, z: 0 },
+    pulseLength: 0.1,
+    pingInterval: 5,
+    maxRange: 10000,
+    detectionThreshold: 10,
+    directivityIndex: 20,
+    isActive: true,
+    lastPingTime: 0,
+    ...overrides,
+    id: overrides?.id ?? id,
+  };
+}
+
+const initialSensor = createNewSensor({ name: 'Sensor 1' });
 
 export const useSensorStore = create<SensorState>((set, get) => ({
-  sensors: new Map([[createDefaultSensor().id, createDefaultSensor()]]),
+  sensors: new Map([[initialSensor.id, initialSensor]]),
   readings: [],
   detections: [],
   activeSensorId: null,
   maxReadingsHistory: 1000,
 
-  addSensor: (sensor) =>
+  addSensor: (overrides) =>
     set((state) => {
+      const name = overrides?.name ?? `Sensor ${state.sensors.size + 1}`;
+      const sensor = createNewSensor({ ...overrides, name });
       const newSensors = new Map(state.sensors);
       newSensors.set(sensor.id, sensor);
-      return { sensors: newSensors };
+      return { sensors: newSensors, activeSensorId: sensor.id };
     }),
 
   removeSensor: (id) =>
@@ -87,16 +96,6 @@ export const useSensorStore = create<SensorState>((set, get) => ({
       
       const newSensors = new Map(state.sensors);
       newSensors.set(id, { ...sensor, isActive: active });
-      return { sensors: newSensors };
-    }),
-
-  setSensorMode: (id, mode) =>
-    set((state) => {
-      const sensor = state.sensors.get(id);
-      if (!sensor) return state;
-      
-      const newSensors = new Map(state.sensors);
-      newSensors.set(id, { ...sensor, mode });
       return { sensors: newSensors };
     }),
 
@@ -131,7 +130,7 @@ export const useSensorStore = create<SensorState>((set, get) => ({
     set({ detections: [] }),
 
   resetSensors: () => {
-    const defaultSensor = createDefaultSensor();
+    const defaultSensor = createNewSensor({ name: 'Sensor 1' });
     set({
       sensors: new Map([[defaultSensor.id, defaultSensor]]),
       readings: [],
@@ -140,6 +139,8 @@ export const useSensorStore = create<SensorState>((set, get) => ({
     });
   },
 }));
+
+export { createNewSensor };
 
 // Selector helpers
 export const getSensorArray = (state: SensorState): Sensor[] =>

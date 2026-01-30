@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, memo } from 'react';
 import {
   LineChart,
   Line,
@@ -18,7 +18,7 @@ interface DepthProfileChartProps {
   height?: number;
 }
 
-export function DepthProfileChart({
+function DepthProfileChartInner({
   profile,
   currentDepth,
   height = 250,
@@ -60,6 +60,7 @@ export function DepthProfileChart({
           data={chartData}
           layout="vertical"
           margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
+          isAnimationActive={false}
         >
           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
           <XAxis
@@ -104,6 +105,7 @@ export function DepthProfileChart({
             strokeWidth={2}
             dot={{ fill: '#4fc3f7', strokeWidth: 0, r: 3 }}
             activeDot={{ r: 5, fill: '#81d4fa' }}
+            isAnimationActive={false}
           />
           {currentDepth !== undefined && (
             <ReferenceLine
@@ -158,6 +160,8 @@ export function DepthProfileChart({
     </Paper>
   );
 }
+
+export const DepthProfileChart = memo(DepthProfileChartInner);
 
 
 

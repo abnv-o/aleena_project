@@ -4,14 +4,11 @@ import {
   Typography,
   Slider,
   Switch,
+  TextField,
   FormControlLabel,
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
   Chip,
   IconButton,
   Tooltip,
@@ -22,10 +19,10 @@ import {
   Add as AddIcon,
 } from '@mui/icons-material';
 import { useSensorStore } from '../../store';
-import type { Sensor, SonarMode } from '../../types';
+import type { Sensor } from '../../types';
 
 export function SensorPanel() {
-  const { sensors, updateSensor, setSensorActive, setSensorMode, setActiveSensor, activeSensorId } =
+  const { sensors, addSensor, updateSensor, setSensorActive, setActiveSensor, activeSensorId } =
     useSensorStore();
 
   const sensorArray = Array.from(sensors.values());
@@ -91,7 +88,12 @@ export function SensorPanel() {
             Active Sensors ({sensorArray.filter((s) => s.isActive).length})
           </Typography>
           <Tooltip title="Add Sensor">
-            <IconButton size="small" sx={{ color: '#4fc3f7' }}>
+            <IconButton
+              size="small"
+              sx={{ color: '#4fc3f7' }}
+              onClick={() => addSensor()}
+              aria-label="Add sensor"
+            >
               <AddIcon fontSize="small" />
             </IconButton>
           </Tooltip>
@@ -158,6 +160,16 @@ export function SensorPanel() {
             </Box>
           </AccordionSummary>
           <AccordionDetails>
+            {/* Name */}
+            <TextField
+              size="small"
+              fullWidth
+              label="Name"
+              value={sensor.name}
+              onChange={(e) => handleSensorUpdate(sensor.id, 'name', e.target.value)}
+              sx={{ mb: 1.5, '& .MuiInputBase-input': { fontSize: '0.875rem' } }}
+            />
+
             {/* Active Toggle */}
             <FormControlLabel
               control={
@@ -178,21 +190,6 @@ export function SensorPanel() {
               label={<Typography variant="caption">Sensor Active</Typography>}
               sx={{ mb: 1 }}
             />
-
-            {/* Mode Selection */}
-            <FormControl fullWidth size="small" sx={{ mb: 2 }}>
-              <InputLabel sx={{ fontSize: '0.875rem' }}>Mode</InputLabel>
-              <Select
-                value={sensor.mode}
-                label="Mode"
-                onChange={(e) => setSensorMode(sensor.id, e.target.value as SonarMode)}
-                sx={{ fontSize: '0.875rem' }}
-              >
-                <MenuItem value="search">Search</MenuItem>
-                <MenuItem value="track">Track</MenuItem>
-                <MenuItem value="classification">Classification</MenuItem>
-              </Select>
-            </FormControl>
 
             {/* Frequency */}
             <SliderControl
@@ -219,7 +216,7 @@ export function SensorPanel() {
               />
             )}
 
-            {/* Beam Width */}
+            {/* Beam Widths (side-scan: horizontal + vertical) */}
             <SliderControl
               label="Horizontal Beam Width"
               value={sensor.beamPattern.horizontalWidth}
@@ -231,6 +228,34 @@ export function SensorPanel() {
                 handleSensorUpdate(sensor.id, 'beamPattern', {
                   ...sensor.beamPattern,
                   horizontalWidth: v,
+                })
+              }
+            />
+            <SliderControl
+              label="Vertical Beam Width"
+              value={sensor.beamPattern.verticalWidth}
+              min={1}
+              max={90}
+              step={1}
+              unit="°"
+              onChange={(v) =>
+                handleSensorUpdate(sensor.id, 'beamPattern', {
+                  ...sensor.beamPattern,
+                  verticalWidth: v,
+                })
+              }
+            />
+            <SliderControl
+              label="Vertical Beam Angle (depression)"
+              value={sensor.beamPattern.verticalBeamAngle ?? 45}
+              min={0}
+              max={90}
+              step={5}
+              unit="°"
+              onChange={(v) =>
+                handleSensorUpdate(sensor.id, 'beamPattern', {
+                  ...sensor.beamPattern,
+                  verticalBeamAngle: v,
                 })
               }
             />

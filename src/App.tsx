@@ -3,12 +3,11 @@ import { ThemeProvider, createTheme, CssBaseline, Box } from '@mui/material';
 import { AppLayout } from './components/layout';
 import { UnderwaterScene } from './three';
 import {
-  SonarDisplay,
-  WaterfallDisplay,
   DepthProfileChart,
+  BathymetryChart,
   SimulationMetrics,
 } from './components/visualization';
-import { useEnvironmentStore, usePlatformStore, useSensorStore, useSimulationStore, useTargetStore } from './store';
+import { useEnvironmentStore, usePlatformStore, useSensorStore, useSimulationStore } from './store';
 import { createRayTracer, getDefaultRayTracingConfig } from './core/raytracing';
 import { keyboardToControls, type KeyboardState } from './core/platform';
 import { processSonarPing } from './core/sensors';
@@ -105,23 +104,7 @@ function SimulationView() {
     [detectionsLength]
   );
   
-  // Get targets size to trigger updates only when targets change
-  const targetsSize = useTargetStore((state) => state.targets.size);
-  const targets = useMemo(
-    () => Array.from(useTargetStore.getState().targets.values()),
-    [targetsSize]
-  );
-  
-  const showRayPaths = useSimulationStore((state) => state.viewport.showRayPaths);
-  const showTargets = useSimulationStore((state) => state.viewport.showTargets);
-
-  // Initialize default targets on mount
-  useEffect(() => {
-    const targetStore = useTargetStore.getState();
-    if (targetStore.targets.size === 0) {
-      targetStore.resetTargets();
-    }
-  }, []);
+  const viewport = useSimulationStore((state) => state.viewport);
 
   // Memoize sensors array to prevent infinite re-renders
   const sensors = useRef(Array.from(sensorsMap.values()));
@@ -210,23 +193,10 @@ function SimulationView() {
         platformStore.applyPhysicsUpdate(deltaTime);
         useSimulationStore.getState().tick(deltaTime);
 
-        // Update target positions based on velocity
-        const targetStore = useTargetStore.getState();
-        targetStore.targets.forEach((target) => {
-          if (vec3.length(target.velocity) > 0.01) {
-            const newPosition = vec3.add(
-              target.position,
-              vec3.multiply(target.velocity, deltaTime)
-            );
-            targetStore.updateTargetPosition(target.id, newPosition);
-          }
-        });
-
         // Process sonar pings
         const envState = useEnvironmentStore.getState().environment;
         const sensorStore = useSensorStore.getState();
         const platState = platformStore.platform;
-        const targets = Array.from(targetStore.targets.values());
 
         // Process each active sensor
         sensorStore.sensors.forEach((sensor) => {
@@ -251,7 +221,7 @@ function SimulationView() {
                 sensorWorldPosition,
                 sensorVelocity,
                 platState.heading,
-                targets,
+                [],
                 {
                   temperature: envState.waterProperties.temperature,
                   salinity: envState.waterProperties.salinity,
@@ -349,10 +319,9 @@ function SimulationView() {
         <UnderwaterScene 
           bathymetry={bathymetry}
           platformPosition={platformPosition}
-          showRayPaths={showRayPaths}
-          showTargets={showTargets}
-          targets={targets}
-          rayTracingResult={rayTracingResult} 
+          showGrid={viewport.showGrid}
+          showSensorCoverage={viewport.showSensorCoverage}
+          underwaterFog={viewport.underwaterFog}
         />
       </Box>
 
@@ -369,30 +338,18 @@ function SimulationView() {
         {/* Simulation Metrics */}
         <SimulationMetrics />
 
-        {/* PPI Sonar Display */}
-        <SonarDisplay
-          type="ppi"
-          readings={readings}
-          detections={detections}
-          maxRange={maxRange}
-          heading={platformHeading}
-          width={296}
-          height={296}
-        />
-
-        {/* Waterfall Display */}
-        <WaterfallDisplay
-          readings={readings}
-          maxRange={maxRange}
-          width={296}
-          height={150}
-        />
-
-        {/* Sound Speed Profile */}
+        {/* Sound Speed Profile — rounded depth to avoid chart re-rendering every frame (prevents Recharts update loop) */}
         <DepthProfileChart
           profile={soundSpeedProfile}
-          currentDepth={platformDepth}
+          currentDepth={Math.round(platformDepth)}
           height={180}
+        />
+
+        {/* Sea Bottom (XYZ) — Bathymetry map (rounded position to avoid per-frame re-renders) */}
+        <BathymetryChart
+          bathymetry={bathymetry}
+          platformPosition={{ x: Math.round(platformPosition.x), y: Math.round(platformPosition.y) }}
+          height={220}
         />
       </Box>
     </Box>

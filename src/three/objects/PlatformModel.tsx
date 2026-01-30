@@ -58,11 +58,12 @@ export function PlatformModel({ platform }: PlatformModelProps) {
         platform.position.z
       );
 
-      // Apply rotation: heading (yaw), pitch, roll
+      // Yaw: heading 0 = +X (forward), 90° = +Y (right). Capsule axis is Y, so -90° points +X.
+      const yawRad = ((platform.heading - 90) * Math.PI) / 180;
       groupRef.current.rotation.set(
         (platform.pitch * Math.PI) / 180,
         0,
-        (-platform.heading * Math.PI) / 180
+        yawRad
       );
     }
   });

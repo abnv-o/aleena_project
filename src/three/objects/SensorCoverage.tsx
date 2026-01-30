@@ -3,70 +3,95 @@ import * as THREE from 'three';
 import { useSensorStore, usePlatformStore } from '../../store';
 import { degToRad } from '../../utils/math';
 
+/** Scale factor so beam fits in view (maxRange can be 10000+ m) */
+const RANGE_SCALE = 1 / 15;
+
+/**
+ * Build beam geometry from sensor config:
+ * - horizontalWidth: bearing spread (deg)
+ * - verticalWidth: elevation spread (deg)
+ * - verticalBeamAngle: depression of beam center from horizontal (deg)
+ * - maxRange: range in m (scaled for viz)
+ * Local frame: X = forward, Y = starboard, Z = up. Beam center depressed by verticalBeamAngle.
+ */
+function buildBeamGeometry(sensor: {
+  beamPattern: { horizontalWidth: number; verticalWidth: number; verticalBeamAngle?: number };
+  maxRange: number;
+}): THREE.BufferGeometry {
+  const hHalf = degToRad(sensor.beamPattern.horizontalWidth / 2);
+  const vHalf = degToRad(sensor.beamPattern.verticalWidth / 2);
+  const vCenter = degToRad(sensor.beamPattern.verticalBeamAngle ?? 45);
+  const range = sensor.maxRange * RANGE_SCALE;
+
+  const nBearing = 12;
+  const nElevation = 8;
+  const positions: number[] = [0, 0, 0]; // apex
+
+  for (let j = 0; j <= nElevation; j++) {
+    const e = vCenter - vHalf + (j / nElevation) * 2 * vHalf;
+    for (let i = 0; i <= nBearing; i++) {
+      const b = -hHalf + (i / nBearing) * 2 * hHalf;
+      const x = range * Math.cos(e) * Math.cos(b);
+      const y = range * Math.cos(e) * Math.sin(b);
+      const z = -range * Math.sin(e);
+      positions.push(x, y, z);
+    }
+  }
+
+  const indices: number[] = [];
+  const apex = 0;
+  for (let j = 0; j < nElevation; j++) {
+    for (let i = 0; i < nBearing; i++) {
+      const i1 = 1 + i + j * (nBearing + 1);
+      const i2 = 1 + (i + 1) + j * (nBearing + 1);
+      const i3 = 1 + (i + 1) + (j + 1) * (nBearing + 1);
+      const i4 = 1 + i + (j + 1) * (nBearing + 1);
+      indices.push(apex, i1, i2, apex, i2, i3, apex, i3, i4, apex, i4, i1);
+    }
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
+/** Stable config key so we only rebuild geometry when sensor config actually changes (avoids per-frame new refs → update loop) */
+function getSensorConfigKey(sensors: Map<string, { id: string; isActive: boolean; beamPattern: { horizontalWidth: number; verticalWidth: number; verticalBeamAngle?: number }; maxRange: number }>): string {
+  return Array.from(sensors.values())
+    .filter((s) => s.isActive)
+    .map(
+      (s) =>
+        `${s.id}-${s.beamPattern.horizontalWidth}-${s.beamPattern.verticalWidth}-${s.beamPattern.verticalBeamAngle ?? 45}-${s.maxRange}`
+    )
+    .join('|');
+}
+
 export function SensorCoverage() {
-  const sensors = useSensorStore((state) => Array.from(state.sensors.values()));
+  const configKey = useSensorStore((state) => getSensorConfigKey(state.sensors));
   const platform = usePlatformStore((state) => state.platform);
 
   const coverageGeometries = useMemo(() => {
-    return sensors
+    const store = useSensorStore.getState();
+    return Array.from(store.sensors.values())
       .filter((sensor) => sensor.isActive)
       .map((sensor) => {
-        const horizontalAngle = degToRad(sensor.beamPattern.horizontalWidth);
-        const verticalAngle = degToRad(sensor.beamPattern.verticalWidth);
-        const range = sensor.maxRange / 10; // Scale down for visualization
-
-        // Create a cone representing the sensor coverage
-        // Using custom geometry for more accurate beam shape
-        const segments = 32;
-        const positions: number[] = [];
-        const indices: number[] = [];
-
-        // Apex of the cone (sensor position)
-        positions.push(0, 0, 0);
-
-        // Generate cone base vertices
-        for (let i = 0; i <= segments; i++) {
-          const t = i / segments;
-          const azimuth = -horizontalAngle / 2 + t * horizontalAngle;
-          
-          // Calculate position on cone surface
-          const x = range * Math.sin(azimuth);
-          const y = range * Math.cos(azimuth);
-          const z = 0; // Horizontal beam for now
-          
-          positions.push(x, y, z);
-        }
-
-        // Create triangles from apex to base
-        for (let i = 1; i <= segments; i++) {
-          indices.push(0, i, i + 1);
-        }
-
-        const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute(
-          'position',
-          new THREE.Float32BufferAttribute(positions, 3)
-        );
-        geometry.setIndex(indices);
-        geometry.computeVertexNormals();
-
-        return {
-          geometry,
-          sensor,
-          color:
-            sensor.type === 'active'
-              ? new THREE.Color(0x00ff88)
-              : new THREE.Color(0x8888ff),
-        };
+        const geometry = buildBeamGeometry(sensor);
+        const color =
+          sensor.type === 'active'
+            ? new THREE.Color(0x00ff88)
+            : new THREE.Color(0x8888ff);
+        return { geometry, sensor, color };
       });
-  }, [sensors]);
+  }, [configKey]);
 
   return (
     <group
       position={[platform.position.x, platform.position.y, platform.position.z]}
       rotation={[0, 0, -degToRad(platform.heading)]}
     >
-      {coverageGeometries.map(({ geometry, sensor, color }, index) => (
+      {coverageGeometries.map(({ geometry, sensor, color }) => (
         <mesh key={sensor.id} geometry={geometry}>
           <meshBasicMaterial
             color={color}
@@ -77,38 +102,6 @@ export function SensorCoverage() {
           />
         </mesh>
       ))}
-
-      {/* Sensor coverage edge lines */}
-      {coverageGeometries.map(({ sensor, color }) => {
-        const range = sensor.maxRange / 10;
-        const halfAngle = degToRad(sensor.beamPattern.horizontalWidth / 2);
-
-        const leftEdge = new THREE.Vector3(
-          -range * Math.sin(halfAngle),
-          range * Math.cos(halfAngle),
-          0
-        );
-        const rightEdge = new THREE.Vector3(
-          range * Math.sin(halfAngle),
-          range * Math.cos(halfAngle),
-          0
-        );
-
-        const points = [
-          new THREE.Vector3(0, 0, 0),
-          leftEdge,
-          new THREE.Vector3(0, 0, 0),
-          rightEdge,
-        ];
-
-        const lineGeometry = new THREE.BufferGeometry().setFromPoints(points);
-
-        return (
-          <lineSegments key={`edge-${sensor.id}`} geometry={lineGeometry}>
-            <lineBasicMaterial color={color} transparent opacity={0.5} />
-          </lineSegments>
-        );
-      })}
     </group>
   );
 }

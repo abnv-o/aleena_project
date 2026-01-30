@@ -24,7 +24,7 @@ interface SimulationStoreState {
 }
 
 const createDefaultSimulation = (): SimulationState => ({
-  isRunning: false,
+  isRunning: true,   // Run by default so platform movement and physics update every frame
   isPaused: false,
   time: 0,
   timeStep: 0.05,  // 50ms = 20 FPS physics
@@ -39,7 +39,6 @@ const createDefaultViewport = (): ViewportConfig => ({
   showDepthMarkers: true,
   showRayPaths: true,
   showSensorCoverage: true,
-  showTargets: true,
   underwaterFog: true,
   cameraMode: 'orbit',
 });

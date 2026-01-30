@@ -155,11 +155,25 @@ export function processSonarPing(
     // Skip if out of range
     if (range > sensor.maxRange) continue;
 
-    // Check if target is within beam
+    // Horizontal range and elevation (depression from horizontal) for vertical beam
+    const horizontalRange = Math.sqrt(
+      (target.position.x - sensorWorldPosition.x) ** 2 +
+      (target.position.y - sensorWorldPosition.y) ** 2
+    );
+    const deltaZ = sensorWorldPosition.z - target.position.z; // positive = target below sensor
+    const elevationDeg = (180 / Math.PI) * Math.atan2(deltaZ, horizontalRange); // depression angle in degrees
+    const verticalBeamAngle = sensor.beamPattern.verticalBeamAngle ?? 45;
+    const halfVerticalWidth = (sensor.beamPattern.verticalWidth ?? 20) / 2;
+    const inVerticalBeam =
+      elevationDeg >= verticalBeamAngle - halfVerticalWidth &&
+      elevationDeg <= verticalBeamAngle + halfVerticalWidth;
+    if (!inVerticalBeam) continue;
+
+    // Check if target is within horizontal beam
     const bearingRad = (relativeBearing * Math.PI) / 180;
     const beamWidthRad = (sensor.beamPattern.horizontalWidth * Math.PI) / 180;
-    
-    // Beam pattern attenuation
+
+    // Beam pattern attenuation (uses sensor config)
     const beamLoss = -beamPatternResponse(bearingRad, beamWidthRad);
 
     // Calculate transmission loss

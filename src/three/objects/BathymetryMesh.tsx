@@ -6,20 +6,23 @@ interface BathymetryMeshProps {
   bathymetry: BathymetryData;
 }
 
-// Custom shader for bathymetry coloring
+// Custom shader for bathymetry coloring with non-homogeneous sediment
 const bathymetryVertexShader = `
   varying float vDepth;
   varying vec3 vNormal;
   varying vec3 vPosition;
+  varying vec3 vWorldPos;
 
   void main() {
     vDepth = -position.z;
     vNormal = normalMatrix * normal;
     vPosition = (modelViewMatrix * vec4(position, 1.0)).xyz;
+    vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
 `;
 
+// Simple hash for position-based variation (noise-like)
 const bathymetryFragmentShader = `
   uniform float minDepth;
   uniform float maxDepth;
@@ -30,24 +33,61 @@ const bathymetryFragmentShader = `
   varying float vDepth;
   varying vec3 vNormal;
   varying vec3 vPosition;
+  varying vec3 vWorldPos;
+
+  float hash(vec2 p) {
+    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+  }
+  float hash(vec3 p) {
+    return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453);
+  }
+  float noise2(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    float a = hash(i);
+    float b = hash(i + vec2(1.0, 0.0));
+    float c = hash(i + vec2(0.0, 1.0));
+    float d = hash(i + vec2(1.0, 1.0));
+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+  }
+  float fbm(vec2 p) {
+    float v = 0.0;
+    v += 0.5 * noise2(p);
+    v += 0.25 * noise2(p * 2.0);
+    v += 0.125 * noise2(p * 4.0);
+    return v;
+  }
 
   void main() {
-    // Depth-based coloring
+    // Depth-based base coloring
     float t = clamp((vDepth - minDepth) / (maxDepth - minDepth), 0.0, 1.0);
     vec3 baseColor = mix(shallowColor, deepColor, t);
+
+    // Non-homogeneous sediment: patches of sand, mud, rock by world position
+    vec2 worldXY = vWorldPos.xy * 0.02;
+    float n = fbm(worldXY);
+    float n2 = hash(vWorldPos.xy * 0.01 + vDepth * 0.1);
+    vec3 sand = vec3(0.55, 0.48, 0.35);
+    vec3 mud = vec3(0.25, 0.22, 0.18);
+    vec3 rock = vec3(0.35, 0.38, 0.4);
+    vec3 patchColor = mix(sand, mud, n);
+    patchColor = mix(patchColor, rock, smoothstep(0.5, 0.7, n2));
+    baseColor = mix(baseColor, patchColor, 0.5 + 0.3 * (n - 0.5));
+    baseColor = mix(baseColor, baseColor * (0.85 + 0.15 * n), 0.6);
 
     // Simple lighting
     vec3 normal = normalize(vNormal);
     vec3 lightDir = normalize(lightDirection);
     float diffuse = max(dot(normal, lightDir), 0.0);
-    float ambient = 0.3;
+    float ambient = 0.35;
 
-    // Depth-based darkening (deeper = darker due to light absorption)
+    // Depth-based darkening (deeper = darker)
     float depthFactor = 1.0 - t * 0.5;
 
-    vec3 finalColor = baseColor * (ambient + diffuse * 0.7) * depthFactor;
+    vec3 finalColor = baseColor * (ambient + diffuse * 0.65) * depthFactor;
 
-    // Add slight blue tint for underwater effect
+    // Slight blue tint for underwater
     finalColor = mix(finalColor, vec3(0.0, 0.2, 0.4), t * 0.2);
 
     gl_FragColor = vec4(finalColor, 1.0);

@@ -1,6 +1,7 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { Box, Typography, Paper, LinearProgress } from '@mui/material';
-import { useSimulationStore, usePlatformStore, useSensorStore } from '../../store';
+import { useSimulationStore, usePlatformStore, useSensorStore, useEnvironmentStore } from '../../store';
+import { getDepthAtPosition } from '../../utils/bathymetryGenerator';
 
 interface MetricProps {
   label: string;
@@ -51,6 +52,32 @@ export function SimulationMetrics() {
   const simulation = useSimulationStore((state) => state.simulation);
   const platform = usePlatformStore((state) => state.platform);
   const detections = useSensorStore((state) => state.detections);
+  const bathymetry = useEnvironmentStore((state) => state.environment.bathymetry);
+
+  // Depth metrics: real (bathymetry), sonar-calculated (depth from surface), depth from platform, margin of error
+  const depthMetrics = useMemo(() => {
+    const realDepth = getDepthAtPosition(
+      bathymetry,
+      platform.position.x,
+      platform.position.y
+    );
+    const depthFromPlatform = realDepth - platform.depth; // distance from platform down to seabed, m
+    const simulatedErrorM = 0.02 * realDepth + 0.1; // 2% of depth + 0.1 m (deterministic from position)
+    const errorSign = (Math.floor(platform.position.x / 50) + Math.floor(platform.position.y / 50)) % 2 === 0 ? 1 : -1;
+    const sonarCalculatedDepth = realDepth + errorSign * simulatedErrorM * 0.5; // sonar estimate of seabed depth from surface
+    const marginOfError = Math.abs(sonarCalculatedDepth - realDepth);
+    return {
+      realDepth,
+      sonarCalculatedDepth,
+      depthFromPlatform,
+      marginOfError,
+    };
+  }, [
+    bathymetry,
+    platform.position.x,
+    platform.position.y,
+    platform.depth,
+  ]);
 
   const [fps, setFps] = useState(0);
   const lastFrameTimeRef = useRef(Date.now());
@@ -171,12 +198,42 @@ export function SimulationMetrics() {
         </Typography>
 
         <Metric
-          label="Depth"
+          label="Depth (platform)"
           value={platform.depth.toFixed(1)}
           unit="m"
           color="#ff7043"
           progress={(platform.depth / platform.config.maxDepth) * 100}
         />
+
+        <Box sx={{ borderTop: '1px solid rgba(255,255,255,0.06)', mt: 1, pt: 1 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+            Sonar / bathymetry
+          </Typography>
+          <Metric
+            label="Calculated depth (from surface)"
+            value={depthMetrics.sonarCalculatedDepth.toFixed(2)}
+            unit="m"
+            color="#81d4fa"
+          />
+          <Metric
+            label="Real depth (bathymetry)"
+            value={depthMetrics.realDepth.toFixed(2)}
+            unit="m"
+            color="#4fc3f7"
+          />
+          <Metric
+            label="Depth from platform"
+            value={depthMetrics.depthFromPlatform.toFixed(2)}
+            unit="m"
+            color={depthMetrics.depthFromPlatform >= 0 ? '#81c784' : '#f44336'}
+          />
+          <Metric
+            label="Margin of error"
+            value={depthMetrics.marginOfError.toFixed(2)}
+            unit="m"
+            color="#ffb74d"
+          />
+        </Box>
 
         <Metric
           label="Speed"

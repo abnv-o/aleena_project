@@ -1,7 +1,7 @@
 // Visualization components barrel export
 export { SonarDisplay } from './SonarDisplay';
-export { WaterfallDisplay } from './WaterfallDisplay';
 export { DepthProfileChart } from './DepthProfileChart';
+export { BathymetryChart } from './BathymetryChart';
 export { SimulationMetrics } from './SimulationMetrics';
 
 

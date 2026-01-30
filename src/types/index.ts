@@ -75,11 +75,11 @@ export interface Environment {
 // ============================================================================
 
 export type SensorType = 'active' | 'passive';
-export type SonarMode = 'search' | 'track' | 'classification';
 
 export interface BeamPattern {
-  horizontalWidth: number;  // Horizontal beam width in degrees
-  verticalWidth: number;    // Vertical beam width in degrees
+  horizontalWidth: number;   // Horizontal beam width in degrees
+  verticalWidth: number;    // Vertical beam width in degrees (for side-scan)
+  verticalBeamAngle: number;  // Vertical beam angle / depression from horizontal in degrees (side-scan)
   sidelobeLevel: number;    // Sidelobe level in dB below main lobe
 }
 
@@ -87,8 +87,7 @@ export interface Sensor {
   id: string;
   name: string;
   type: SensorType;
-  mode: SonarMode;
-  
+
   // Physical properties
   frequency: number;        // Operating frequency in Hz
   bandwidth: number;        // Signal bandwidth in Hz
@@ -266,7 +265,6 @@ export interface ViewportConfig {
   showDepthMarkers: boolean;
   showRayPaths: boolean;
   showSensorCoverage: boolean;
-  showTargets: boolean;
   underwaterFog: boolean;
   cameraMode: 'orbit' | 'follow' | 'top_down' | 'side_view';
 }

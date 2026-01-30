@@ -4,30 +4,25 @@ import { OrbitControls, Grid } from '@react-three/drei';
 import * as THREE from 'three';
 import { BathymetryMesh } from '../objects/BathymetryMesh';
 import { WaterSurface } from '../objects/WaterSurface';
-import { RayPathVisualization } from '../objects/RayPathVisualization';
-import { TargetVisualization } from '../objects/TargetVisualization';
-import type { BathymetryData, Target } from '../../types';
+import { SensorCoverage } from '../objects/SensorCoverage';
+import type { BathymetryData } from '../../types';
 
 interface SceneContentProps {
   bathymetry: BathymetryData;
   platformPosition: { x: number; y: number; z: number };
-  showRayPaths: boolean;
-  showTargets?: boolean;
-  targets?: Target[];
-  rayTracingResult?: {
-    rays: Array<{
-      points: Array<{ position: { x: number; y: number; z: number }; intensity: number }>;
-    }>;
-  } | null;
+  showGrid: boolean;
+  showSensorCoverage: boolean;
+  underwaterFog: boolean;
+  cameraTarget: [number, number, number];
 }
 
 function SceneContent({ 
   bathymetry, 
   platformPosition, 
-  showRayPaths,
-  showTargets = true,
-  targets = [],
-  rayTracingResult 
+  showGrid,
+  showSensorCoverage,
+  underwaterFog,
+  cameraTarget,
 }: SceneContentProps) {
   const targetPosition = useMemo(() => 
     [platformPosition.x, platformPosition.y, platformPosition.z] as [number, number, number],
@@ -51,19 +46,21 @@ function SceneContent({
       />
       <BathymetryMesh bathymetry={bathymetry} />
 
-      {/* Grid */}
-      <Grid
-        args={[bathymetry.width, bathymetry.height]}
-        position={[bathymetry.width / 2, bathymetry.height / 2, -10]}
-        cellSize={50}
-        cellThickness={0.5}
-        cellColor={0x224466}
-        sectionSize={200}
-        sectionThickness={1}
-        sectionColor={0x446688}
-        fadeDistance={2000}
-        fadeStrength={1}
-      />
+      {/* Grid — only when View panel "Show Grid" is on */}
+      {showGrid && (
+        <Grid
+          args={[bathymetry.width, bathymetry.height]}
+          position={[bathymetry.width / 2, bathymetry.height / 2, -10]}
+          cellSize={50}
+          cellThickness={0.5}
+          cellColor={0x224466}
+          sectionSize={200}
+          sectionThickness={1}
+          sectionColor={0x446688}
+          fadeDistance={2000}
+          fadeStrength={1}
+        />
+      )}
 
       {/* Platform marker */}
       <mesh position={targetPosition}>
@@ -71,20 +68,13 @@ function SceneContent({
         <meshStandardMaterial color={0x00ff00} />
       </mesh>
 
-      {/* Ray paths */}
-      {showRayPaths && rayTracingResult && (
-        <RayPathVisualization rays={rayTracingResult.rays} />
-      )}
+      {/* Sensor coverage (beam from sensor config) */}
+      {showSensorCoverage && <SensorCoverage />}
 
-      {/* Targets */}
-      {showTargets && targets.length > 0 && (
-        <TargetVisualization targets={targets} />
-      )}
-
-      {/* Camera controls */}
+      {/* Camera controls — target scene center so view stays XZ (depth = Z, horizontal = X) */}
       <OrbitControls
         makeDefault
-        target={targetPosition}
+        target={cameraTarget}
         minDistance={10}
         maxDistance={2000}
       />
@@ -95,34 +85,36 @@ function SceneContent({
 interface UnderwaterSceneProps {
   bathymetry: BathymetryData;
   platformPosition: { x: number; y: number; z: number };
-  showRayPaths?: boolean;
-  showTargets?: boolean;
-  targets?: Target[];
-  rayTracingResult?: {
-    rays: Array<{
-      points: Array<{ position: { x: number; y: number; z: number }; intensity: number }>;
-    }>;
-  } | null;
+  showGrid?: boolean;
+  showSensorCoverage?: boolean;
+  underwaterFog?: boolean;
 }
 
 export function UnderwaterScene({ 
   bathymetry, 
   platformPosition,
-  showRayPaths = true,
-  showTargets = true,
-  targets = [],
-  rayTracingResult 
+  showGrid = true,
+  showSensorCoverage = true,
+  underwaterFog = true,
 }: UnderwaterSceneProps) {
+  // Camera looks along +Y so we see XZ plane: X horizontal, Z vertical (depth)
   const cameraPosition = useMemo(() => [
-    bathymetry.width / 2 + 300,
-    bathymetry.height / 2 - 300,
+    bathymetry.width / 2,
+    bathymetry.height / 2 - 600,
     100,
+  ] as [number, number, number], [bathymetry.width, bathymetry.height]);
+
+  const cameraTarget = useMemo(() => [
+    bathymetry.width / 2,
+    bathymetry.height / 2,
+    0,
   ] as [number, number, number], [bathymetry.width, bathymetry.height]);
 
   return (
     <Canvas
       camera={{
         position: cameraPosition,
+        up: [0, 0, 1],
         fov: 60,
         near: 1,
         far: 10000,
@@ -135,14 +127,14 @@ export function UnderwaterScene({
       style={{ background: 'linear-gradient(180deg, #001428 0%, #000a14 100%)' }}
     >
       <color attach="background" args={[0x001020]} />
-      <fog attach="fog" args={[0x001428, 100, 2000]} />
+      {underwaterFog && <fog attach="fog" args={[0x001428, 100, 2000]} />}
       <SceneContent 
         bathymetry={bathymetry}
         platformPosition={platformPosition}
-        showRayPaths={showRayPaths}
-        showTargets={showTargets}
-        targets={targets}
-        rayTracingResult={rayTracingResult}
+        showGrid={showGrid}
+        showSensorCoverage={showSensorCoverage}
+        underwaterFog={underwaterFog}
+        cameraTarget={cameraTarget}
       />
     </Canvas>
   );

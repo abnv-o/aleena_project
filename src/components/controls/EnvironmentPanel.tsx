@@ -267,7 +267,7 @@ export function EnvironmentPanel() {
         </AccordionDetails>
       </Accordion>
 
-      {/* Sound Speed Profile Info */}
+      {/* Sound Speed Profile (computed from config) */}
       <Accordion
         sx={{
           backgroundColor: 'rgba(26, 58, 90, 0.3)',
@@ -280,8 +280,11 @@ export function EnvironmentPanel() {
           </Typography>
         </AccordionSummary>
         <AccordionDetails>
+          <Typography variant="caption" color="text.secondary" sx={{ mb: 1.5, display: 'block' }}>
+            Computed in real time from water properties (temperature, salinity) and bathymetry max depth. All sonar and ray-tracing calculations use this profile.
+          </Typography>
           <Typography variant="caption" color="text.secondary" sx={{ mb: 2, display: 'block' }}>
-            {environment.soundSpeedProfile.layers.length} layers defined
+            {environment.soundSpeedProfile.layers.length} layers · 0–{environment.bathymetry.maxDepth} m
           </Typography>
 
           {environment.soundSpeedProfile.layers.slice(0, 5).map((layer, idx) => (

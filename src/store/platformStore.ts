@@ -176,14 +176,14 @@ export const usePlatformStore = create<PlatformState>((set, get) => ({
     const acceleration = 2; // m/s²
     const newSpeed = platform.speed + Math.sign(speedDiff) * Math.min(Math.abs(speedDiff), acceleration * deltaTime);
 
-    // Calculate velocity components from heading and speed
+    // Velocity: heading 0 = +X (forward), 90° = +Y (right), depth = Z
     const headingRad = (newHeading * Math.PI) / 180;
     const horizontalSpeed = newSpeed * Math.cos(platform.pitch * Math.PI / 180);
     const verticalSpeed = -controls.dive * config.diveRate;
 
     const newVelocity = {
-      x: horizontalSpeed * Math.sin(headingRad),
-      y: horizontalSpeed * Math.cos(headingRad),
+      x: horizontalSpeed * Math.cos(headingRad),
+      y: horizontalSpeed * Math.sin(headingRad),
       z: verticalSpeed,
     };
 
