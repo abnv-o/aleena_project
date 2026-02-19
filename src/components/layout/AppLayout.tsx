@@ -20,6 +20,7 @@ import { EnvironmentPanel } from '../controls/EnvironmentPanel';
 import { SensorPanel } from '../controls/SensorPanel';
 import { PlatformPanel } from '../controls/PlatformPanel';
 import { ViewportPanel } from '../controls/ViewportPanel';
+import { TargetPanel } from '../controls/TargetPanel';
 
 const DRAWER_WIDTH = 360;
 
@@ -142,6 +143,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             <Tab label="Environment" />
             <Tab label="Sensors" />
             <Tab label="Platform" />
+            <Tab label="Target" />
             <Tab label="View" />
           </Tabs>
         </Box>
@@ -157,6 +159,9 @@ export function AppLayout({ children }: AppLayoutProps) {
           <PlatformPanel />
         </TabPanel>
         <TabPanel value={tabValue} index={3}>
+          <TargetPanel />
+        </TabPanel>
+        <TabPanel value={tabValue} index={4}>
           <ViewportPanel />
         </TabPanel>
       </Drawer>

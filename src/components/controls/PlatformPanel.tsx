@@ -157,7 +157,7 @@ export function PlatformPanel() {
         </Box>
       </Paper>
 
-      {/* Position Display */}
+      {/* Sonar position (global coordinates) */}
       <Paper
         sx={{
           p: 2,
@@ -166,10 +166,12 @@ export function PlatformPanel() {
         }}
       >
         <Typography variant="caption" color="text.secondary">
-          Position
+          Sonar position (global)
         </Typography>
-        <Box sx={{ fontFamily: 'monospace', fontSize: '0.75rem', color: '#90caf9' }}>
-          X: {platform.position.x.toFixed(1)} m | Y: {platform.position.y.toFixed(1)} m
+        <Box sx={{ fontFamily: 'monospace', fontSize: '0.75rem', color: '#90caf9', mt: 0.5 }}>
+          <Box>X: {platform.position.x.toFixed(1)} m</Box>
+          <Box>Y: {platform.position.y.toFixed(1)} m</Box>
+          <Box>Z: {platform.position.z.toFixed(1)} m</Box>
         </Box>
       </Paper>
 

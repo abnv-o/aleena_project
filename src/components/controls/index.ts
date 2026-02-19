@@ -4,4 +4,5 @@ export { EnvironmentPanel } from './EnvironmentPanel';
 export { SensorPanel } from './SensorPanel';
 export { PlatformPanel } from './PlatformPanel';
 export { ViewportPanel } from './ViewportPanel';
+export { TargetPanel } from './TargetPanel';
 

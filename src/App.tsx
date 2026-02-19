@@ -7,7 +7,7 @@ import {
   BathymetryChart,
   SimulationMetrics,
 } from './components/visualization';
-import { useEnvironmentStore, usePlatformStore, useSensorStore, useSimulationStore } from './store';
+import { useEnvironmentStore, usePlatformStore, useSensorStore, useSimulationStore, useTargetStore } from './store';
 import { createRayTracer, getDefaultRayTracingConfig } from './core/raytracing';
 import { keyboardToControls, type KeyboardState } from './core/platform';
 import { processSonarPing } from './core/sensors';
@@ -88,6 +88,7 @@ function SimulationView() {
   const platformDepth = usePlatformStore((state) => state.platform.depth);
   const platformVelocity = usePlatformStore((state) => state.platform.velocity);
   const setControls = usePlatformStore((state) => state.setControls);
+  const targetPosition = useTargetStore((state) => state.target?.position ?? null);
   
   // Track lengths to minimize re-renders
   const readingsLength = useSensorStore((state) => state.readings.length);
@@ -214,14 +215,17 @@ function SimulationView() {
             // Get sensor velocity (platform velocity)
             const sensorVelocity = platState.velocity;
 
-            // Process ping
+            // Process ping (include placed target if any)
+            const targets = useTargetStore.getState().target
+              ? [useTargetStore.getState().target!]
+              : [];
             try {
               const { readings, detections } = processSonarPing(
                 sensor,
                 sensorWorldPosition,
                 sensorVelocity,
                 platState.heading,
-                [],
+                targets,
                 {
                   temperature: envState.waterProperties.temperature,
                   salinity: envState.waterProperties.salinity,
@@ -319,6 +323,7 @@ function SimulationView() {
         <UnderwaterScene 
           bathymetry={bathymetry}
           platformPosition={platformPosition}
+          targetPosition={targetPosition}
           showGrid={viewport.showGrid}
           showSensorCoverage={viewport.showSensorCoverage}
           underwaterFog={viewport.underwaterFog}

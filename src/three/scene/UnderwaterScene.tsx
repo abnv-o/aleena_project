@@ -10,6 +10,7 @@ import type { BathymetryData } from '../../types';
 interface SceneContentProps {
   bathymetry: BathymetryData;
   platformPosition: { x: number; y: number; z: number };
+  targetPosition: { x: number; y: number; z: number } | null;
   showGrid: boolean;
   showSensorCoverage: boolean;
   underwaterFog: boolean;
@@ -19,15 +20,20 @@ interface SceneContentProps {
 function SceneContent({ 
   bathymetry, 
   platformPosition, 
+  targetPosition: targetPos,
   showGrid,
   showSensorCoverage,
   underwaterFog,
   cameraTarget,
 }: SceneContentProps) {
-  const targetPosition = useMemo(() => 
+  const platformPos = useMemo(() => 
     [platformPosition.x, platformPosition.y, platformPosition.z] as [number, number, number],
     [platformPosition.x, platformPosition.y, platformPosition.z]
   );
+
+  const placedTargetPos = targetPos
+    ? ([targetPos.x, targetPos.y, targetPos.z] as [number, number, number])
+    : null;
 
   return (
     <>
@@ -62,11 +68,19 @@ function SceneContent({
         />
       )}
 
-      {/* Platform marker */}
-      <mesh position={targetPosition}>
+      {/* Platform / sonar marker */}
+      <mesh position={platformPos}>
         <sphereGeometry args={[5, 16, 16]} />
         <meshStandardMaterial color={0x00ff00} />
       </mesh>
+
+      {/* Placed target marker */}
+      {placedTargetPos && (
+        <mesh position={placedTargetPos}>
+          <sphereGeometry args={[8, 16, 16]} />
+          <meshStandardMaterial color={0xff9800} emissive={0xff9800} emissiveIntensity={0.3} />
+        </mesh>
+      )}
 
       {/* Sensor coverage (beam from sensor config) */}
       {showSensorCoverage && <SensorCoverage />}
@@ -85,6 +99,7 @@ function SceneContent({
 interface UnderwaterSceneProps {
   bathymetry: BathymetryData;
   platformPosition: { x: number; y: number; z: number };
+  targetPosition?: { x: number; y: number; z: number } | null;
   showGrid?: boolean;
   showSensorCoverage?: boolean;
   underwaterFog?: boolean;
@@ -93,6 +108,7 @@ interface UnderwaterSceneProps {
 export function UnderwaterScene({ 
   bathymetry, 
   platformPosition,
+  targetPosition = null,
   showGrid = true,
   showSensorCoverage = true,
   underwaterFog = true,
@@ -131,6 +147,7 @@ export function UnderwaterScene({
       <SceneContent 
         bathymetry={bathymetry}
         platformPosition={platformPosition}
+        targetPosition={targetPosition}
         showGrid={showGrid}
         showSensorCoverage={showSensorCoverage}
         underwaterFog={underwaterFog}
