@@ -80,21 +80,24 @@ export function SimulationMetrics() {
   ]);
 
   const [fps, setFps] = useState(0);
-  const lastFrameTimeRef = useRef(Date.now());
-  const frameCountRef = useRef(0);
+  const lastFrameCountRef = useRef(0);
+  const lastFpsTimeRef = useRef(Date.now());
 
-  // Calculate FPS
+  // FPS: sample frame count every second (don't depend on frameCount to avoid effect running 60/sec)
   useEffect(() => {
-    const now = Date.now();
-    const delta = now - lastFrameTimeRef.current;
-    frameCountRef.current += 1;
-
-    if (delta >= 1000) {
-      setFps(Math.round((frameCountRef.current * 1000) / delta));
-      frameCountRef.current = 0;
-      lastFrameTimeRef.current = now;
-    }
-  }, [simulation.frameCount]);
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const state = useSimulationStore.getState().simulation;
+      const elapsed = (now - lastFpsTimeRef.current) / 1000;
+      if (elapsed >= 0.5) {
+        const frames = state.frameCount - lastFrameCountRef.current;
+        setFps(Math.round(frames / elapsed));
+        lastFrameCountRef.current = state.frameCount;
+        lastFpsTimeRef.current = now;
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const formatTime = (seconds: number): string => {
     const hrs = Math.floor(seconds / 3600);

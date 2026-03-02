@@ -14,6 +14,8 @@ interface SimulationStoreState {
   setSpeed: (speed: SimulationSpeed) => void;
   setTimeStep: (timeStep: number) => void;
   tick: (deltaTime: number) => void;
+  /** Throttled sync for display only (call from loop at low rate to avoid update depth) */
+  syncDisplay: (time: number, frameCount: number) => void;
   
   // Viewport actions
   setViewportConfig: (config: Partial<ViewportConfig>) => void;
@@ -110,6 +112,16 @@ export const useSimulationStore = create<SimulationStoreState>((set, get) => ({
         ...state.simulation,
         time: state.simulation.time + deltaTime * state.simulation.speed,
         frameCount: state.simulation.frameCount + 1,
+        lastUpdateTime: Date.now(),
+      },
+    })),
+
+  syncDisplay: (time, frameCount) =>
+    set((state) => ({
+      simulation: {
+        ...state.simulation,
+        time,
+        frameCount,
         lastUpdateTime: Date.now(),
       },
     })),

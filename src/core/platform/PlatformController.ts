@@ -179,7 +179,8 @@ export function canReachPosition(
 }
 
 /**
- * Calculate heading to steer towards a target position
+ * Calculate heading to steer towards a target position.
+ * Convention matches platform physics: heading 0 = +X, 90° = +Y.
  */
 export function headingToTarget(
   currentPosition: Vector3,
@@ -187,9 +188,7 @@ export function headingToTarget(
 ): number {
   const dx = targetPosition.x - currentPosition.x;
   const dy = targetPosition.y - currentPosition.y;
-  
-  // Heading: 0 = North (positive Y), 90 = East (positive X)
-  const bearing = Math.atan2(dx, dy) * (180 / Math.PI);
+  const bearing = Math.atan2(dy, dx) * (180 / Math.PI);
   return normalizeAngle360(bearing);
 }
 
@@ -209,8 +208,8 @@ export function autopilotControls(
   if (headingError > 180) headingError -= 360;
   if (headingError < -180) headingError += 360;
 
-  // Proportional rudder control
-  const rudder = clamp(headingError / 30, -1, 1);
+  // Proportional rudder control (tighter gain so we turn aggressively and complete coverage legs)
+  const rudder = clamp(headingError / 15, -1, 1);
 
   // Depth control
   const targetDepth = -targetPosition.z;

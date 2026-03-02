@@ -5,12 +5,16 @@ import * as THREE from 'three';
 import { BathymetryMesh } from '../objects/BathymetryMesh';
 import { WaterSurface } from '../objects/WaterSurface';
 import { SensorCoverage } from '../objects/SensorCoverage';
+import { CoverageAreaGhost } from '../objects/CoverageAreaGhost';
 import type { BathymetryData } from '../../types';
+import type { SearchArea } from '../../utils/coveragePath';
 
 interface SceneContentProps {
   bathymetry: BathymetryData;
   platformPosition: { x: number; y: number; z: number };
   targetPosition: { x: number; y: number; z: number } | null;
+  coverageArea: SearchArea | null;
+  coverageDepthM: number | null;
   showGrid: boolean;
   showSensorCoverage: boolean;
   underwaterFog: boolean;
@@ -21,6 +25,8 @@ function SceneContent({
   bathymetry, 
   platformPosition, 
   targetPosition: targetPos,
+  coverageArea,
+  coverageDepthM,
   showGrid,
   showSensorCoverage,
   underwaterFog,
@@ -82,6 +88,11 @@ function SceneContent({
         </mesh>
       )}
 
+      {/* Coverage area ghost outline */}
+      {coverageArea && coverageDepthM != null && (
+        <CoverageAreaGhost area={coverageArea} depthM={coverageDepthM} />
+      )}
+
       {/* Sensor coverage (beam from sensor config) */}
       {showSensorCoverage && <SensorCoverage />}
 
@@ -100,6 +111,8 @@ interface UnderwaterSceneProps {
   bathymetry: BathymetryData;
   platformPosition: { x: number; y: number; z: number };
   targetPosition?: { x: number; y: number; z: number } | null;
+  coverageArea?: SearchArea | null;
+  coverageDepthM?: number | null;
   showGrid?: boolean;
   showSensorCoverage?: boolean;
   underwaterFog?: boolean;
@@ -109,6 +122,8 @@ export function UnderwaterScene({
   bathymetry, 
   platformPosition,
   targetPosition = null,
+  coverageArea = null,
+  coverageDepthM = null,
   showGrid = true,
   showSensorCoverage = true,
   underwaterFog = true,
@@ -148,6 +163,8 @@ export function UnderwaterScene({
         bathymetry={bathymetry}
         platformPosition={platformPosition}
         targetPosition={targetPosition}
+        coverageArea={coverageArea}
+        coverageDepthM={coverageDepthM}
         showGrid={showGrid}
         showSensorCoverage={showSensorCoverage}
         underwaterFog={underwaterFog}
