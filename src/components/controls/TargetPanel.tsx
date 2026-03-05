@@ -262,7 +262,7 @@ export function TargetPanel() {
           {isTargetDetectedBySonar ? (
             <>
               <Typography variant="subtitle2" sx={{ color: '#81d4fa', mb: 2 }}>
-                Target detection readings (sonar detected)
+                Object found — target position (world coordinates)
               </Typography>
           <Paper
             sx={{
@@ -272,7 +272,10 @@ export function TargetPanel() {
             }}
           >
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-              Global coordinates
+              Global coordinates (world frame)
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+              Target position in world coordinates (m)
             </Typography>
             <Box sx={{ fontFamily: 'monospace', fontSize: '0.75rem', color: '#ffb74d', mb: 2 }}>
               <Box>X: {target.position.x.toFixed(2)} m</Box>
