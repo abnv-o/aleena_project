@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -6,20 +6,27 @@ import {
   Button,
   Paper,
   Divider,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
 } from '@mui/material';
 import { Place as PlaceIcon, Clear as ClearIcon, PlayArrow as PlayIcon, Stop as StopIcon } from '@mui/icons-material';
 import { useTargetStore, usePlatformStore, useEnvironmentStore, useSensorStore } from '../../store';
-import { getDepthAtPosition } from '../../utils/bathymetryGenerator';
 import { vec3 } from '../../utils/math';
+import { TARGET_TYPE_DISPLAY_NAMES, type TargetTypeKey } from '../../utils/targetFactory';
 import type { SearchArea } from '../../utils/coveragePath';
 
 export function TargetPanel() {
   const {
-    target,
-    setTargetPosition,
+    targets,
+    addTarget,
     clearTarget,
-    searchArea,
-    setSearchArea,
     coverageActive,
     startAreaCoverage,
     stopAreaCoverage,
@@ -34,6 +41,7 @@ export function TargetPanel() {
   const [placeX, setPlaceX] = useState('500');
   const [placeY, setPlaceY] = useState('500');
   const [placeDepth, setPlaceDepth] = useState('100');
+  const [targetType, setTargetType] = useState<TargetTypeKey>('submarine');
 
   // Search area coordinates
   const [areaMinX, setAreaMinX] = useState(String(bounds.minX));
@@ -66,20 +74,21 @@ export function TargetPanel() {
     }
   }, [coverageActive, isAutopilot, waypointQueueLength, stopAreaCoverage]);
 
-  // Sync form when target is set externally
+  // Sync form when first target exists (optional)
   useEffect(() => {
-    if (target) {
-      setPlaceX(target.position.x.toFixed(0));
-      setPlaceY(target.position.y.toFixed(0));
-      setPlaceDepth((-target.position.z).toFixed(0));
+    const first = targets[0];
+    if (first) {
+      setPlaceX(first.position.x.toFixed(0));
+      setPlaceY(first.position.y.toFixed(0));
+      setPlaceDepth((-first.position.z).toFixed(0));
     }
-  }, [target?.position.x, target?.position.y, target?.position.z]);
+  }, [targets.length === 0 ? null : targets[0]?.position.x, targets[0]?.position.y, targets[0]?.position.z]);
 
   const handlePlace = () => {
     const x = parseFloat(placeX) || 0;
     const y = parseFloat(placeY) || 0;
     const depthM = Math.max(0, parseFloat(placeDepth) || 0);
-    setTargetPosition({ x, y, z: -depthM });
+    addTarget(targetType, { x, y, z: -depthM });
   };
 
   const handleClear = () => {
@@ -99,37 +108,35 @@ export function TargetPanel() {
       minY: Math.min(minY, maxY),
       maxY: Math.max(minY, maxY),
     };
-    console.log('[Coverage] Start clicked:', {
-      area,
-      trackSpacingM,
-      surveyDepthM,
-      platformPos: platform.position,
-    });
     startAreaCoverage({ trackSpacingM, surveyDepthM, area });
   };
 
-  // Object is only "detected" when sonar has actually reported it (SE > 0 in sonar equation)
-  const isTargetDetectedBySonar =
-    target && detections.some((d) => d.id.includes(target.id));
+  const latestDetectionsByTarget = useMemo(() => {
+    const byTarget = new Map<string, (typeof detections)[0]>();
+    for (let i = detections.length - 1; i >= 0; i--) {
+      const d = detections[i];
+      const tid = d.targetId ?? (d.id.split('-')[2]);
+      if (tid && !byTarget.has(tid)) byTarget.set(tid, d);
+    }
+    return byTarget;
+  }, [detections]);
 
-  // Computed target metrics (scientific: global coords, depths, ranges)
-  const targetMetrics = target
-    ? (() => {
-        const { position } = target;
-        const depthFromSurfaceM = -position.z; // positive = meters below surface
-        const seabedDepthAtTargetM = getDepthAtPosition(bathymetry, position.x, position.y);
-        const heightAboveSeabedM = seabedDepthAtTargetM - depthFromSurfaceM; // positive = target above bottom
-        const slantRangeM = vec3.distance(platform.position, position);
-        const verticalOffsetM = position.z - platform.position.z; // positive = target below sonar
-        return {
-          depthFromSurfaceM,
-          seabedDepthAtTargetM,
-          heightAboveSeabedM,
-          slantRangeM,
-          verticalOffsetM,
-        };
-      })()
-    : null;
+  const activeDetectionCount = useMemo(
+    () => new Set(detections.map((d) => d.targetId ?? d.id.split('-')[2]).filter(Boolean)).size,
+    [detections]
+  );
+
+  const detectionTableRows = useMemo(() => {
+    return targets.map((t) => {
+      const distanceM = vec3.distance(platform.position, t.position);
+      const latest = latestDetectionsByTarget.get(t.id);
+      const detected = !!latest;
+      const detectionLevel = latest?.detectionLevel ?? null;
+      const confidence = latest?.confidence ?? null;
+      const displayName = TARGET_TYPE_DISPLAY_NAMES[t.type as TargetTypeKey] ?? t.type;
+      return { target: t, displayName, distanceM, detectionLevel, confidence, detected };
+    });
+  }, [targets, platform.position, latestDetectionsByTarget]);
 
   return (
     <Box>
@@ -137,7 +144,7 @@ export function TargetPanel() {
         Target placement
       </Typography>
       <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
-        Place a single target in global coordinates. Sonar will detect it when in range and beam.
+        Choose target type and place in global coordinates. Sonar detects using the sonar equation (SL − 2·TL + TS − NL).
       </Typography>
 
       <Paper
@@ -148,6 +155,21 @@ export function TargetPanel() {
           border: '1px solid rgba(79, 195, 247, 0.2)',
         }}
       >
+        <FormControl size="small" fullWidth sx={{ mb: 1.5 }}>
+          <InputLabel id="target-type-label">Target type</InputLabel>
+          <Select
+            labelId="target-type-label"
+            value={targetType}
+            label="Target type"
+            onChange={(e) => setTargetType(e.target.value as TargetTypeKey)}
+            sx={{ fontSize: '0.875rem' }}
+          >
+            <MenuItem value="submarine">{TARGET_TYPE_DISPLAY_NAMES.submarine}</MenuItem>
+            <MenuItem value="surface_vessel">{TARGET_TYPE_DISPLAY_NAMES.surface_vessel}</MenuItem>
+            <MenuItem value="biological">{TARGET_TYPE_DISPLAY_NAMES.biological}</MenuItem>
+            <MenuItem value="mine">{TARGET_TYPE_DISPLAY_NAMES.mine}</MenuItem>
+          </Select>
+        </FormControl>
         <Box sx={{ display: 'grid', gap: 1.5 }}>
           <TextField
             size="small"
@@ -156,10 +178,7 @@ export function TargetPanel() {
             value={placeX}
             onChange={(e) => setPlaceX(e.target.value)}
             inputProps={{ min: bounds.minX, max: bounds.maxX, step: 1 }}
-            sx={{
-              '& .MuiOutlinedInput-root': { fontSize: '0.875rem' },
-              '& .MuiInputLabel-root': { fontSize: '0.8rem' },
-            }}
+            sx={{ '& .MuiOutlinedInput-root': { fontSize: '0.875rem' }, '& .MuiInputLabel-root': { fontSize: '0.8rem' } }}
           />
           <TextField
             size="small"
@@ -168,10 +187,7 @@ export function TargetPanel() {
             value={placeY}
             onChange={(e) => setPlaceY(e.target.value)}
             inputProps={{ min: bounds.minY, max: bounds.maxY, step: 1 }}
-            sx={{
-              '& .MuiOutlinedInput-root': { fontSize: '0.875rem' },
-              '& .MuiInputLabel-root': { fontSize: '0.8rem' },
-            }}
+            sx={{ '& .MuiOutlinedInput-root': { fontSize: '0.875rem' }, '& .MuiInputLabel-root': { fontSize: '0.8rem' } }}
           />
           <TextField
             size="small"
@@ -180,10 +196,7 @@ export function TargetPanel() {
             value={placeDepth}
             onChange={(e) => setPlaceDepth(e.target.value)}
             inputProps={{ min: 0, max: bathymetry.maxDepth, step: 1 }}
-            sx={{
-              '& .MuiOutlinedInput-root': { fontSize: '0.875rem' },
-              '& .MuiInputLabel-root': { fontSize: '0.8rem' },
-            }}
+            sx={{ '& .MuiOutlinedInput-root': { fontSize: '0.875rem' }, '& .MuiInputLabel-root': { fontSize: '0.8rem' } }}
           />
         </Box>
         <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
@@ -192,11 +205,7 @@ export function TargetPanel() {
             variant="contained"
             startIcon={<PlaceIcon />}
             onClick={handlePlace}
-            sx={{
-              backgroundColor: '#4fc3f7',
-              color: '#0a1420',
-              '&:hover': { backgroundColor: '#81d4fa' },
-            }}
+            sx={{ backgroundColor: '#4fc3f7', color: '#0a1420', '&:hover': { backgroundColor: '#81d4fa' } }}
           >
             Place target
           </Button>
@@ -207,7 +216,7 @@ export function TargetPanel() {
             onClick={handleClear}
             sx={{ borderColor: '#6b8cae', color: '#90a4ae' }}
           >
-            Clear
+            Clear all
           </Button>
         </Box>
       </Paper>
@@ -217,7 +226,7 @@ export function TargetPanel() {
         Area coverage (autonomous search)
       </Typography>
       <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
-        Define a rectangle by coordinates. The platform will move automatically in a lawnmower pattern to cover the area while the sonar detects the placed object.
+        Define a rectangle. The platform will run a lawnmower pattern; sonar will detect placed targets in range and beam.
       </Typography>
       <Paper
         sx={{
@@ -256,79 +265,54 @@ export function TargetPanel() {
         )}
       </Paper>
 
-      {target && (
-        <>
-          <Divider sx={{ my: 2, borderColor: 'rgba(255,255,255,0.1)' }} />
-          {isTargetDetectedBySonar ? (
-            <>
-              <Typography variant="subtitle2" sx={{ color: '#81d4fa', mb: 2 }}>
-                Object found — target position (world coordinates)
-              </Typography>
-          <Paper
-            sx={{
-              p: 2,
-              backgroundColor: 'rgba(26, 58, 90, 0.2)',
-              border: '1px solid rgba(255, 193, 7, 0.3)',
-            }}
-          >
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-              Global coordinates (world frame)
-            </Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-              Target position in world coordinates (m)
-            </Typography>
-            <Box sx={{ fontFamily: 'monospace', fontSize: '0.75rem', color: '#ffb74d', mb: 2 }}>
-              <Box>X: {target.position.x.toFixed(2)} m</Box>
-              <Box>Y: {target.position.y.toFixed(2)} m</Box>
-              <Box>Z: {target.position.z.toFixed(2)} m</Box>
-            </Box>
-
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-              Depth from sea surface
-            </Typography>
-            <Typography variant="body2" sx={{ fontFamily: 'monospace', color: '#90caf9', mb: 1.5 }}>
-              {targetMetrics.depthFromSurfaceM.toFixed(2)} m
-            </Typography>
-
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-              Depth from seabed (height above bottom)
-            </Typography>
-            <Typography variant="body2" sx={{ fontFamily: 'monospace', color: '#90caf9', mb: 1.5 }}>
-              {targetMetrics.heightAboveSeabedM.toFixed(2)} m
-              <Typography component="span" variant="caption" sx={{ ml: 1, color: 'text.secondary' }}>
-                (seabed at {targetMetrics.seabedDepthAtTargetM.toFixed(1)} m)
-              </Typography>
-            </Typography>
-
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-              Distance from sonar to target (slant range)
-            </Typography>
-            <Typography variant="body2" sx={{ fontFamily: 'monospace', color: '#81c784', mb: 1.5 }}>
-              {targetMetrics.slantRangeM.toFixed(2)} m
-            </Typography>
-
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-              Depth from sonar to target (vertical offset)
-            </Typography>
-            <Typography variant="body2" sx={{ fontFamily: 'monospace', color: '#81c784' }}>
-              {targetMetrics.verticalOffsetM >= 0 ? '+' : ''}{targetMetrics.verticalOffsetM.toFixed(2)} m
-              <Typography component="span" variant="caption" sx={{ ml: 1, color: 'text.secondary' }}>
-                {targetMetrics.verticalOffsetM > 0 ? '(target below sonar)' : '(target above sonar)'}
-              </Typography>
-            </Typography>
-          </Paper>
-            </>
-          ) : (
-            <Paper sx={{ p: 2, backgroundColor: 'rgba(26, 58, 90, 0.2)', border: '1px solid rgba(255,255,255,0.15)' }}>
-              <Typography variant="caption" color="text.secondary">
-                Target placed — waiting for sonar detection
-              </Typography>
-              <Typography variant="body2" sx={{ color: '#90a4ae', mt: 0.5 }}>
-                Move the platform so the target is in range and within the sonar beam. Readings will appear when the sonar equation detects the object.
-              </Typography>
-            </Paper>
-          )}
-        </>
+      <Divider sx={{ my: 2, borderColor: 'rgba(255,255,255,0.1)' }} />
+      <Typography variant="subtitle2" sx={{ color: '#81d4fa', mb: 1 }}>
+        Detection output
+      </Typography>
+      <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+        Active detections: {activeDetectionCount}
+      </Typography>
+      {targets.length > 0 ? (
+        <Paper
+          sx={{
+            overflow: 'auto',
+            backgroundColor: 'rgba(26, 58, 90, 0.25)',
+            border: '1px solid rgba(79, 195, 247, 0.2)',
+          }}
+        >
+          <Table size="small" stickyHeader>
+            <TableHead>
+              <TableRow>
+                <TableCell sx={{ fontWeight: 600, color: '#81d4fa', fontSize: '0.75rem' }}>Target</TableCell>
+                <TableCell sx={{ fontWeight: 600, color: '#81d4fa', fontSize: '0.75rem' }}>Distance</TableCell>
+                <TableCell sx={{ fontWeight: 600, color: '#81d4fa', fontSize: '0.75rem' }}>Detection level</TableCell>
+                <TableCell sx={{ fontWeight: 600, color: '#81d4fa', fontSize: '0.75rem' }}>Confidence</TableCell>
+                <TableCell sx={{ fontWeight: 600, color: '#81d4fa', fontSize: '0.75rem' }}>Status</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {detectionTableRows.map((row) => (
+                <TableRow key={row.target.id}>
+                  <TableCell sx={{ fontSize: '0.8rem' }}>{row.displayName}</TableCell>
+                  <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{row.distanceM.toFixed(0)} m</TableCell>
+                  <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                    {row.detectionLevel != null ? `${row.detectionLevel.toFixed(1)} dB` : '—'}
+                  </TableCell>
+                  <TableCell sx={{ fontSize: '0.8rem' }}>
+                    {row.confidence != null ? `${Math.round(row.confidence * 100)}%` : '—'}
+                  </TableCell>
+                  <TableCell sx={{ fontSize: '0.8rem', color: row.detected ? '#81c784' : '#90a4ae' }}>
+                    {row.detected ? 'Detected' : 'Not detected'}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Paper>
+      ) : (
+        <Typography variant="caption" color="text.secondary">
+          Place targets to see detection table.
+        </Typography>
       )}
     </Box>
   );

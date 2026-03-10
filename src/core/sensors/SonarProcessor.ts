@@ -9,6 +9,7 @@ import type { Sensor, Vector3, Target, Detection, SensorReading } from '../../ty
 import { vec3, calculateBearing, calculateSlantRange, calculateDopplerShift, dbToLinear, linearToDb } from '../../utils/math';
 import { transmissionLoss, ambientNoiseLevel, arrayGain } from '../physics/acoustics';
 import { getSoundSpeedAtDepth } from '../../utils/soundSpeed';
+import { classifyTargetByTS } from '../../utils/targetClassification';
 
 interface SonarEquationParams {
   sourceLevel: number;          // SL (dB re 1μPa @ 1m)
@@ -214,10 +215,13 @@ export function processSonarPing(
       );
     }
 
-    // Calculate received signal level for display
-    const signalLevel = sensor.type === 'active'
+    // Calculate received signal level for display (Detection Level in dB)
+    const detectionLevel = sensor.type === 'active'
       ? sensor.sourceLevel - 2 * TL + target.targetStrength - beamLoss
       : target.noiseLevel - TL;
+
+    // Classification from Target Strength (for display)
+    const { displayName: classifiedType, confidence: tsConfidence } = classifyTargetByTS(target.targetStrength);
 
     // Add reading
     readings.push({
@@ -225,22 +229,24 @@ export function processSonarPing(
       timestamp: simulationTime,
       bearing: bearing,
       range: range,
-      intensity: signalLevel,
+      intensity: detectionLevel,
       doppler: dopplerShift,
     });
 
-    // Check for detection
+    // Check for detection (Signal Excess > 0)
     if (SE > 0) {
       detections.push({
         id: `det-${sensor.id}-${target.id}-${simulationTime}`,
         sensorId: sensor.id,
+        targetId: target.id,
         timestamp: simulationTime,
         position: { ...target.position },
         bearing: bearing,
         range: range,
         signalExcess: SE,
-        classification: target.type,
-        confidence: Math.min(1, SE / 20), // Confidence based on SE
+        detectionLevel,
+        classification: classifiedType,
+        confidence: Math.min(1, (SE / 20) * 0.5 + tsConfidence * 0.5),
       });
     }
   }

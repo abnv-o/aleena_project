@@ -116,13 +116,15 @@ export function geometricSpreadingLoss(
  * @param frequency Frequency in Hz
  * @param waterProperties Water properties for absorption calculation
  * @param spreadingMode Geometric spreading mode
+ * @param absorptionDbPerKm Optional override: absorption in dB/km (e.g. 0.5 for DOSITS validation). When set, Francois-Garrison is skipped.
  * @returns Total transmission loss in dB
  */
 export function transmissionLoss(
   range: number,
   frequency: number,
   waterProperties: WaterProperties,
-  spreadingMode: 'spherical' | 'cylindrical' = 'spherical'
+  spreadingMode: 'spherical' | 'cylindrical' = 'spherical',
+  absorptionDbPerKm?: number
 ): number {
   if (range <= 1) return 0;
 
@@ -130,14 +132,19 @@ export function transmissionLoss(
   const TL_spreading = geometricSpreadingLoss(range, spreadingMode);
 
   // Absorption loss
-  const alpha = francoisGarrisonAbsorption(
-    frequency,
-    waterProperties.temperature,
-    waterProperties.salinity,
-    50, // Average depth approximation
-    waterProperties.pH
-  );
-  const TL_absorption = alpha * range;
+  let TL_absorption: number;
+  if (absorptionDbPerKm !== undefined) {
+    TL_absorption = (absorptionDbPerKm / 1000) * range;
+  } else {
+    const alpha = francoisGarrisonAbsorption(
+      frequency,
+      waterProperties.temperature,
+      waterProperties.salinity,
+      50, // Average depth approximation
+      waterProperties.pH
+    );
+    TL_absorption = alpha * range;
+  }
 
   return TL_spreading + TL_absorption;
 }

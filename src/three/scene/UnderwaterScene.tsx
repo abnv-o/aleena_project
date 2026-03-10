@@ -6,40 +6,38 @@ import { BathymetryMesh } from '../objects/BathymetryMesh';
 import { WaterSurface } from '../objects/WaterSurface';
 import { SensorCoverage } from '../objects/SensorCoverage';
 import { CoverageAreaGhost } from '../objects/CoverageAreaGhost';
+import { TargetMarker } from '../objects/TargetMarker';
 import type { BathymetryData } from '../../types';
+import type { Target } from '../../types';
 import type { SearchArea } from '../../utils/coveragePath';
 
 interface SceneContentProps {
   bathymetry: BathymetryData;
   platformPosition: { x: number; y: number; z: number };
-  targetPosition: { x: number; y: number; z: number } | null;
+  targets: Target[];
+  detectedTargetIds: Set<string>;
   coverageArea: SearchArea | null;
   coverageDepthM: number | null;
   showGrid: boolean;
   showSensorCoverage: boolean;
-  underwaterFog: boolean;
   cameraTarget: [number, number, number];
 }
 
 function SceneContent({ 
   bathymetry, 
   platformPosition, 
-  targetPosition: targetPos,
+  targets,
+  detectedTargetIds,
   coverageArea,
   coverageDepthM,
   showGrid,
   showSensorCoverage,
-  underwaterFog,
   cameraTarget,
 }: SceneContentProps) {
   const platformPos = useMemo(() => 
     [platformPosition.x, platformPosition.y, platformPosition.z] as [number, number, number],
     [platformPosition.x, platformPosition.y, platformPosition.z]
   );
-
-  const placedTargetPos = targetPos
-    ? ([targetPos.x, targetPos.y, targetPos.z] as [number, number, number])
-    : null;
 
   return (
     <>
@@ -80,13 +78,14 @@ function SceneContent({
         <meshStandardMaterial color={0x00ff00} />
       </mesh>
 
-      {/* Placed target marker */}
-      {placedTargetPos && (
-        <mesh position={placedTargetPos}>
-          <sphereGeometry args={[8, 16, 16]} />
-          <meshStandardMaterial color={0xff9800} emissive={0xff9800} emissiveIntensity={0.3} />
-        </mesh>
-      )}
+      {/* Placed targets (by type: submarine, vessel, whale, mine) */}
+      {targets.map((t) => (
+        <TargetMarker
+          key={t.id}
+          target={t}
+          detected={detectedTargetIds.has(t.id)}
+        />
+      ))}
 
       {/* Coverage area ghost outline */}
       {coverageArea && coverageDepthM != null && (
@@ -110,7 +109,8 @@ function SceneContent({
 interface UnderwaterSceneProps {
   bathymetry: BathymetryData;
   platformPosition: { x: number; y: number; z: number };
-  targetPosition?: { x: number; y: number; z: number } | null;
+  targets?: Target[];
+  detectedTargetIds?: Set<string>;
   coverageArea?: SearchArea | null;
   coverageDepthM?: number | null;
   showGrid?: boolean;
@@ -121,7 +121,8 @@ interface UnderwaterSceneProps {
 export function UnderwaterScene({ 
   bathymetry, 
   platformPosition,
-  targetPosition = null,
+  targets = [],
+  detectedTargetIds = new Set(),
   coverageArea = null,
   coverageDepthM = null,
   showGrid = true,
@@ -162,12 +163,12 @@ export function UnderwaterScene({
       <SceneContent 
         bathymetry={bathymetry}
         platformPosition={platformPosition}
-        targetPosition={targetPosition}
+        targets={targets}
+        detectedTargetIds={detectedTargetIds}
         coverageArea={coverageArea}
         coverageDepthM={coverageDepthM}
         showGrid={showGrid}
         showSensorCoverage={showSensorCoverage}
-        underwaterFog={underwaterFog}
         cameraTarget={cameraTarget}
       />
     </Canvas>

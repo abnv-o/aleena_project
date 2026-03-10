@@ -96,20 +96,22 @@ export function AppLayout({ children }: AppLayoutProps) {
           >
             Underwater Sonar Simulation Platform
           </Typography>
+          <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)', mr: 2, display: { xs: 'none', sm: 'block' } }}>
+            Menu left · Space: start/stop
+          </Typography>
 
           {/* Simulation Controls in AppBar */}
           <SimulationControls />
         </Toolbar>
       </AppBar>
 
-      {/* Side Drawer */}
+      {/* Side Drawer - overlay so main content keeps full width when open */}
       <Drawer
-        variant="persistent"
+        variant="temporary"
         anchor="left"
         open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
         sx={{
-          width: drawerOpen ? DRAWER_WIDTH : 0,
-          flexShrink: 0,
           '& .MuiDrawer-paper': {
             width: DRAWER_WIDTH,
             boxSizing: 'border-box',
@@ -166,21 +168,45 @@ export function AppLayout({ children }: AppLayoutProps) {
         </TabPanel>
       </Drawer>
 
-      {/* Main Content Area */}
+      {/* Main Content Area - no marginLeft so drawer and main share space (drawer already in flow) */}
       <Box
         component="main"
         sx={{
           flexGrow: 1,
+          minWidth: 0,
           height: '100vh',
           overflow: 'hidden',
-          transition: theme.transitions.create('margin', {
-            easing: theme.transitions.easing.sharp,
-            duration: theme.transitions.duration.leavingScreen,
-          }),
-          marginLeft: drawerOpen ? 0 : `-${DRAWER_WIDTH}px`,
+          position: 'relative',
         }}
       >
         <Toolbar variant="dense" />
+        {/* Hint when drawer is closed */}
+        {!drawerOpen && (
+          <Box
+            onClick={() => setDrawerOpen(true)}
+            sx={{
+              position: 'absolute',
+              left: 8,
+              top: 52,
+              zIndex: 10,
+              px: 1.5,
+              py: 1,
+              borderRadius: 1,
+              backgroundColor: 'rgba(26, 58, 90, 0.95)',
+              border: '1px solid #4fc3f7',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              color: '#4fc3f7',
+              fontSize: '0.8rem',
+              '&:hover': { backgroundColor: 'rgba(26, 58, 90, 1)' },
+            }}
+          >
+            <MenuIcon sx={{ fontSize: 20 }} />
+            Open menu
+          </Box>
+        )}
         <Box sx={{ height: 'calc(100vh - 48px)', position: 'relative' }}>
           {children}
         </Box>

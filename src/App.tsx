@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { ThemeProvider, createTheme, CssBaseline, Box } from '@mui/material';
+import { Routes, Route, Link } from 'react-router-dom';
 import { AppLayout } from './components/layout';
 import { UnderwaterScene } from './three';
 import {
@@ -7,6 +8,7 @@ import {
   BathymetryChart,
   SimulationMetrics,
 } from './components/visualization';
+import { SoundSpeedProfilePage } from './pages/SoundSpeedProfilePage';
 import { useEnvironmentStore, usePlatformStore, useSensorStore, useSimulationStore, useTargetStore } from './store';
 import { getPendingPlatform, flushPendingPlatformState } from './store/platformStore';
 import { createRayTracer, getDefaultRayTracingConfig } from './core/raytracing';
@@ -89,7 +91,7 @@ function SimulationView() {
   const platformDepth = usePlatformStore((state) => state.platform.depth);
   const platformVelocity = usePlatformStore((state) => state.platform.velocity);
   const setControls = usePlatformStore((state) => state.setControls);
-  const targetPosition = useTargetStore((state) => state.target?.position ?? null);
+  const targets = useTargetStore((state) => state.targets);
   const coverageArea = useTargetStore((state) => state.searchArea);
   const coverageDepthM = useTargetStore((state) => state.coverageSurveyDepthM);
   
@@ -107,6 +109,14 @@ function SimulationView() {
     () => useSensorStore.getState().detections,
     [detectionsLength]
   );
+  const detectedTargetIds = useMemo(() => {
+    const ids = new Set<string>();
+    detections.forEach((d) => {
+      const tid = d.targetId ?? d.id.split('-')[2];
+      if (tid) ids.add(tid);
+    });
+    return ids;
+  }, [detections]);
   
   const viewport = useSimulationStore((state) => state.viewport);
 
@@ -229,9 +239,7 @@ function SimulationView() {
               sensor.mountPosition
             );
             const sensorVelocity = platState.velocity;
-            const targets = useTargetStore.getState().target
-              ? [useTargetStore.getState().target!]
-              : [];
+            const targets = useTargetStore.getState().targets;
             try {
               const { readings, detections } = processSonarPing(
                 sensor,
@@ -344,7 +352,8 @@ function SimulationView() {
         <UnderwaterScene 
           bathymetry={bathymetry}
           platformPosition={platformPosition}
-          targetPosition={targetPosition}
+          targets={targets}
+          detectedTargetIds={detectedTargetIds}
           coverageArea={coverageArea}
           coverageDepthM={coverageDepthM}
           showGrid={viewport.showGrid}
@@ -367,11 +376,25 @@ function SimulationView() {
         <SimulationMetrics />
 
         {/* Sound Speed Profile — rounded depth to avoid chart re-rendering every frame (prevents Recharts update loop) */}
-        <DepthProfileChart
-          profile={soundSpeedProfile}
-          currentDepth={Math.round(platformDepth)}
-          height={180}
-        />
+        <Box>
+          <DepthProfileChart
+            profile={soundSpeedProfile}
+            currentDepth={Math.round(platformDepth)}
+            height={180}
+          />
+          <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 0.5 }}>
+            <Link
+              to="/sound-speed-profile"
+              style={{
+                fontSize: 11,
+                color: '#4fc3f7',
+                textDecoration: 'none',
+              }}
+            >
+              Full size →
+            </Link>
+          </Box>
+        </Box>
 
         {/* Sea Bottom (XYZ) — Bathymetry map (rounded position to avoid per-frame re-renders) */}
         <BathymetryChart
@@ -389,7 +412,10 @@ function App() {
     <ThemeProvider theme={darkTheme}>
       <CssBaseline />
       <AppLayout>
-        <SimulationView />
+        <Routes>
+          <Route path="/" element={<SimulationView />} />
+          <Route path="/sound-speed-profile" element={<SoundSpeedProfilePage />} />
+        </Routes>
       </AppLayout>
     </ThemeProvider>
   );

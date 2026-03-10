@@ -126,11 +126,13 @@ export interface SensorReading {
 export interface Detection {
   id: string;
   sensorId: string;
+  targetId?: string;       // ID of the target that was detected
   timestamp: number;
   position: Vector3;
   bearing: number;
   range: number;
   signalExcess: number;     // Signal excess in dB
+  detectionLevel?: number;  // Received detection level in dB (for UI)
   classification: string;
   confidence: number;       // 0-1
 }
