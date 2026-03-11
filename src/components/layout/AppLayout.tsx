@@ -22,7 +22,7 @@ import { PlatformPanel } from '../controls/PlatformPanel';
 import { ViewportPanel } from '../controls/ViewportPanel';
 import { TargetPanel } from '../controls/TargetPanel';
 
-const DRAWER_WIDTH = 360;
+const DRAWER_WIDTH = 380;
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -38,7 +38,7 @@ function TabPanel(props: TabPanelProps) {
       hidden={value !== index}
       id={`tabpanel-${index}`}
       {...other}
-      style={{ height: 'calc(100% - 48px)', overflow: 'auto' }}
+      style={{ height: '100%', overflow: 'auto' }}
     >
       {value === index && <Box sx={{ p: 2 }}>{children}</Box>}
     </div>
@@ -117,13 +117,34 @@ export function AppLayout({ children }: AppLayoutProps) {
             boxSizing: 'border-box',
             background: 'linear-gradient(180deg, #0d1a2d 0%, #0a1420 100%)',
             borderRight: '1px solid #1a3a5a',
+            display: 'flex',
+            flexDirection: 'column',
+            height: '100%',
           },
         }}
       >
-        <Toolbar variant="dense" />
-        
-        {/* Tabs for different panels */}
-        <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+        <Toolbar variant="dense" sx={{ flexShrink: 0 }} />
+
+        {/* Environment: always visible at top */}
+        <Box
+          sx={{
+            flexShrink: 0,
+            borderBottom: 1,
+            borderColor: 'divider',
+            maxHeight: '40vh',
+            overflow: 'auto',
+          }}
+        >
+          <Typography variant="overline" sx={{ px: 2, pt: 1.5, pb: 0.5, display: 'block', color: '#81d4fa', fontSize: '0.7rem' }}>
+            Environment
+          </Typography>
+          <Box sx={{ px: 2, pb: 2 }}>
+            <EnvironmentPanel />
+          </Box>
+        </Box>
+
+        {/* Tabs for other panels */}
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', flexShrink: 0 }}>
           <Tabs
             value={tabValue}
             onChange={handleTabChange}
@@ -131,8 +152,9 @@ export function AppLayout({ children }: AppLayoutProps) {
             sx={{
               '& .MuiTab-root': {
                 color: '#6b8cae',
-                fontSize: '0.75rem',
-                minHeight: 48,
+                fontSize: '0.7rem',
+                minHeight: 44,
+                py: 0,
                 '&.Mui-selected': {
                   color: '#4fc3f7',
                 },
@@ -142,7 +164,6 @@ export function AppLayout({ children }: AppLayoutProps) {
               },
             }}
           >
-            <Tab label="Environment" />
             <Tab label="Sensors" />
             <Tab label="Platform" />
             <Tab label="Target" />
@@ -150,22 +171,21 @@ export function AppLayout({ children }: AppLayoutProps) {
           </Tabs>
         </Box>
 
-        {/* Tab Panels */}
-        <TabPanel value={tabValue} index={0}>
-          <EnvironmentPanel />
-        </TabPanel>
-        <TabPanel value={tabValue} index={1}>
-          <SensorPanel />
-        </TabPanel>
-        <TabPanel value={tabValue} index={2}>
-          <PlatformPanel />
-        </TabPanel>
-        <TabPanel value={tabValue} index={3}>
-          <TargetPanel />
-        </TabPanel>
-        <TabPanel value={tabValue} index={4}>
-          <ViewportPanel />
-        </TabPanel>
+        {/* Tab Panels - scrollable */}
+        <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+          <TabPanel value={tabValue} index={0}>
+            <SensorPanel />
+          </TabPanel>
+          <TabPanel value={tabValue} index={1}>
+            <PlatformPanel />
+          </TabPanel>
+          <TabPanel value={tabValue} index={2}>
+            <TargetPanel />
+          </TabPanel>
+          <TabPanel value={tabValue} index={3}>
+            <ViewportPanel />
+          </TabPanel>
+        </Box>
       </Drawer>
 
       {/* Main Content Area - no marginLeft so drawer and main share space (drawer already in flow) */}

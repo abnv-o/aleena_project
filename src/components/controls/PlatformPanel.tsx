@@ -1,7 +1,7 @@
 import {
   Box,
   Typography,
-  Slider,
+  TextField,
   Chip,
   Divider,
   Paper,
@@ -11,71 +11,98 @@ import {
   Speed as SpeedIcon,
   Height as DepthIcon,
 } from '@mui/icons-material';
+import { useState, useEffect } from 'react';
 import { usePlatformStore } from '../../store';
 
-export function PlatformPanel() {
-  const { platform, controls, setControls, setDepth, setHeading } = usePlatformStore();
+function ControlField({
+  label,
+  value,
+  onChange,
+  icon,
+  leftLabel,
+  rightLabel,
+  color = '#4fc3f7',
+}: {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+  icon: React.ReactNode;
+  leftLabel: string;
+  rightLabel: string;
+  color?: string;
+}) {
+  const pct = Math.round(value * 100);
+  const [inputText, setInputText] = useState(String(pct));
+  const [focused, setFocused] = useState(false);
 
-  const handleControlChange = (control: 'throttle' | 'rudder' | 'dive', value: number) => {
-    setControls({ [control]: value });
+  useEffect(() => {
+    if (!focused) setInputText(String(Math.round(value * 100)));
+  }, [value, focused]);
+
+  const commitValue = (raw: string) => {
+    const parsed = parseFloat(raw);
+    if (!Number.isNaN(parsed)) {
+      const pctClamped = Math.min(100, Math.max(-100, parsed));
+      onChange(pctClamped / 100);
+      setInputText(String(Math.round(pctClamped)));
+    } else {
+      setInputText(String(Math.round(value * 100)));
+    }
+    setFocused(false);
   };
 
-  const ControlSlider = ({
-    label,
-    value,
-    onChange,
-    icon,
-    leftLabel,
-    rightLabel,
-    color = '#4fc3f7',
-  }: {
-    label: string;
-    value: number;
-    onChange: (value: number) => void;
-    icon: React.ReactNode;
-    leftLabel: string;
-    rightLabel: string;
-    color?: string;
-  }) => (
-    <Box sx={{ mb: 3 }}>
+  return (
+    <Box sx={{ mb: 2 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
         {icon}
         <Typography variant="caption" color="text.secondary">
           {label}
         </Typography>
-        <Typography
-          variant="caption"
-          color="primary"
-          sx={{ ml: 'auto', fontFamily: 'monospace' }}
-        >
-          {value > 0 ? '+' : ''}
-          {(value * 100).toFixed(0)}%
+        <Typography variant="caption" color="text.secondary" sx={{ flex: 1, textAlign: 'center' }}>
+          {leftLabel} ← → {rightLabel}
         </Typography>
       </Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Typography variant="caption" color="text.secondary" sx={{ width: 50, textAlign: 'right' }}>
-          {leftLabel}
-        </Typography>
-        <Slider
-          value={value}
-          min={-1}
-          max={1}
-          step={0.1}
-          onChange={(_, v) => onChange(v as number)}
+        <TextField
           size="small"
+          value={focused ? inputText : pct}
+          onChange={(e) => {
+            if (focused) setInputText(e.target.value);
+            else {
+              const v = parseFloat(e.target.value);
+              if (!Number.isNaN(v)) onChange(Math.min(1, Math.max(-1, v / 100)));
+            }
+          }}
+          onFocus={() => setFocused(true)}
+          onBlur={() => commitValue(inputText)}
+          onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+          inputProps={{
+            type: 'number',
+            min: -100,
+            max: 100,
+            step: 10,
+            style: { width: 64, textAlign: 'center', fontSize: '0.875rem' },
+          }}
           sx={{
-            color,
-            '& .MuiSlider-thumb': { width: 14, height: 14 },
-            '& .MuiSlider-track': { height: 4 },
-            '& .MuiSlider-rail': { height: 4 },
+            flex: '0 0 auto',
+            '& .MuiInputBase-root': { backgroundColor: 'rgba(0,0,0,0.2)' },
+            '& .MuiOutlinedInput-notchedOutline': { borderColor: `${color}66` },
           }}
         />
-        <Typography variant="caption" color="text.secondary" sx={{ width: 50 }}>
-          {rightLabel}
+        <Typography variant="caption" color="primary" sx={{ fontFamily: 'monospace' }}>
+          %
         </Typography>
       </Box>
     </Box>
   );
+}
+
+export function PlatformPanel() {
+  const { platform, controls, setControls, setDepth } = usePlatformStore();
+
+  const handleControlChange = (control: 'throttle' | 'rudder' | 'dive', value: number) => {
+    setControls({ [control]: value });
+  };
 
   const StatDisplay = ({
     label,
@@ -184,7 +211,7 @@ export function PlatformPanel() {
         Use WASD keys for movement, Q/E for depth. Hold Shift for speed boost.
       </Typography>
 
-      <ControlSlider
+      <ControlField
         label="Throttle"
         value={controls.throttle}
         onChange={(v) => handleControlChange('throttle', v)}
@@ -194,7 +221,7 @@ export function PlatformPanel() {
         color="#81c784"
       />
 
-      <ControlSlider
+      <ControlField
         label="Rudder"
         value={controls.rudder}
         onChange={(v) => handleControlChange('rudder', v)}
@@ -203,7 +230,7 @@ export function PlatformPanel() {
         rightLabel="Stbd"
       />
 
-      <ControlSlider
+      <ControlField
         label="Dive"
         value={controls.dive}
         onChange={(v) => handleControlChange('dive', v)}

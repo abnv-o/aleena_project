@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { useEnvironmentStore, usePlatformStore, useSensorStore, useSimulationStore } from '../store';
-import type { SimulationSnapshot, ExportConfig } from '../types';
+import type { SimulationSnapshot, ExportConfig, Detection, Sensor } from '../types';
+import { transmissionLoss, geometricSpreadingLoss, ambientNoiseLevel } from '../core/physics/acoustics';
 
 export function useDataExport() {
   // Use getState to avoid subscriptions that cause re-renders
@@ -32,10 +33,81 @@ export function useDataExport() {
     };
   }, []);
 
+  /** Build acoustic metrics for export: TL, SNR, detection result, max range, spreading, absorption, total noise */
+  const buildAcousticExport = useCallback(() => {
+    const env = getEnvironment();
+    const sens = getSensors();
+    const dets = getDetections();
+    const wp = env.waterProperties;
+    const seaState = wp.seaState ?? 2;
+    const shippingLevel = 4;
+
+    const sensorById = new Map<string, Sensor>(sens.map((s) => [s.id, s]));
+
+    const round2 = (v: number) => Math.round(v * 100) / 100;
+
+    return {
+      detectionCount: dets.length,
+      sensors: sens.map((s) => {
+        const rangeMax = s.maxRange;
+        const freq = s.frequency;
+        const TL_dB = transmissionLoss(rangeMax, freq, wp, 'spherical');
+        const spreadingLoss_dB = geometricSpreadingLoss(rangeMax, 'spherical');
+        const absorptionLoss_dB = TL_dB - spreadingLoss_dB;
+        const NL_dB = ambientNoiseLevel(freq, seaState, shippingLevel);
+        const totalNoiseLevel_dB = NL_dB + 10 * Math.log10(s.bandwidth);
+
+        return {
+          id: s.id,
+          name: s.name,
+          maxDetectionRange_m: s.maxRange,
+          transmissionLoss_dB_atMaxRange: round2(TL_dB),
+          spreadingLoss_dB_atMaxRange: round2(spreadingLoss_dB),
+          absorptionLoss_dB_atMaxRange: round2(absorptionLoss_dB),
+          totalNoiseLevel_dB: round2(totalNoiseLevel_dB),
+        };
+      }),
+      detections: dets.map((d) => {
+        const sensor = sensorById.get(d.sensorId);
+        const range = d.range;
+        const freq = sensor?.frequency ?? 10000;
+
+        const TL_dB = transmissionLoss(range, freq, wp, 'spherical');
+        const spreadingLoss_dB = geometricSpreadingLoss(range, 'spherical');
+        const absorptionLoss_dB = TL_dB - spreadingLoss_dB;
+
+        const NL_dB = ambientNoiseLevel(freq, seaState, shippingLevel);
+        const bandwidth = sensor?.bandwidth ?? 100;
+        const totalNoiseLevel_dB = NL_dB + 10 * Math.log10(bandwidth);
+
+        const detectionThreshold = sensor?.detectionThreshold ?? 0;
+        const snr_dB = d.signalExcess + detectionThreshold;
+
+        return {
+          id: d.id,
+          sensorId: d.sensorId,
+          targetId: d.targetId,
+          timestamp: d.timestamp,
+          range_m: d.range,
+          bearing_deg: d.bearing,
+          transmissionLoss_dB: round2(TL_dB),
+          spreadingLoss_dB: round2(spreadingLoss_dB),
+          absorptionLoss_dB: round2(absorptionLoss_dB),
+          totalNoiseLevel_dB: round2(totalNoiseLevel_dB),
+          snr_dB: round2(snr_dB),
+          signalExcess_dB: d.signalExcess,
+          detectionResult: d.signalExcess > 0 ? 'detected' : 'not_detected',
+          detectionLevel_dB: d.detectionLevel,
+        };
+      }),
+    };
+  }, []);
+
   const exportToJSON = useCallback((config?: Partial<ExportConfig>) => {
     const snapshot = createSnapshot();
     const reads = config?.includeSensorReadings ? getReadings() : undefined;
-    
+    const acousticExport = buildAcousticExport();
+
     const exportData = {
       exportedAt: new Date().toISOString(),
       version: '1.0.0',
@@ -44,6 +116,10 @@ export function useDataExport() {
       config: {
         format: 'json',
         ...config,
+      },
+      acousticExport: {
+        sensors: acousticExport.sensors,
+        detections: acousticExport.detections,
       },
     };
 
@@ -59,7 +135,7 @@ export function useDataExport() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-  }, [createSnapshot]);
+  }, [createSnapshot, buildAcousticExport]);
 
   const exportToCSV = useCallback(() => {
     // Export detections as CSV

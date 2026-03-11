@@ -5,6 +5,8 @@
 **Test framework:** Vitest 4.x  
 **Reference:** DOSITS “Sonar Equation Example: Active Sonar” + single_reference_validation.md.pdf
 
+**How we test, inputs, outputs, and expected vs real:** see **[how-we-test.md](how-we-test.md)** for a full explanation (how inputs are given, what each test outputs, expected vs actual results).
+
 ---
 
 ## Summary

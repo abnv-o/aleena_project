@@ -1,8 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
-  Slider,
   TextField,
   Button,
   Accordion,
@@ -15,6 +14,88 @@ import {
   Refresh as RefreshIcon,
 } from '@mui/icons-material';
 import { useEnvironmentStore } from '../../store';
+
+function NumberField({
+  label,
+  value,
+  min,
+  max,
+  step,
+  unit,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  unit: string;
+  onChange: (value: number) => void;
+}) {
+  const [inputText, setInputText] = useState(String(value));
+  const [focused, setFocused] = useState(false);
+
+  useEffect(() => {
+    if (!focused) setInputText(String(value));
+  }, [value, focused]);
+
+  const commitValue = (raw: string) => {
+    const parsed = parseFloat(raw);
+    if (!Number.isNaN(parsed)) {
+      const clamped = Math.min(max, Math.max(min, parsed));
+      const stepped = step < 1
+        ? Math.round(clamped / step) * step
+        : Math.round(clamped / step) * step;
+      const final = Math.min(max, Math.max(min, stepped));
+      onChange(final);
+      setInputText(String(final));
+    } else {
+      setInputText(String(value));
+    }
+    setFocused(false);
+  };
+
+  return (
+    <Box sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+      <Typography variant="caption" color="text.secondary" sx={{ minWidth: 90 }}>
+        {label}
+      </Typography>
+      <TextField
+        size="small"
+        value={focused ? inputText : value}
+        onChange={(e) => {
+          if (focused) setInputText(e.target.value);
+          else {
+            const v = parseFloat(e.target.value);
+            if (!Number.isNaN(v)) {
+              const clamped = Math.min(max, Math.max(min, v));
+              onChange(clamped);
+            }
+          }
+        }}
+        onFocus={() => setFocused(true)}
+        onBlur={() => commitValue(inputText)}
+        onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+        inputProps={{
+          type: 'number',
+          min,
+          max,
+          step,
+          style: { width: 80, textAlign: 'right', fontSize: '0.875rem' },
+        }}
+        sx={{
+          '& .MuiInputBase-root': { backgroundColor: 'rgba(0,0,0,0.2)' },
+          '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(79, 195, 247, 0.4)' },
+        }}
+      />
+      {unit && (
+        <Typography variant="caption" color="primary">
+          {unit}
+        </Typography>
+      )}
+    </Box>
+  );
+}
 
 export function EnvironmentPanel() {
   const { environment, setWaterProperties, generateNewBathymetry } =
@@ -43,50 +124,6 @@ export function EnvironmentPanel() {
     );
   };
 
-  const SliderWithLabel = ({
-    label,
-    value,
-    min,
-    max,
-    step,
-    unit,
-    onChange,
-  }: {
-    label: string;
-    value: number;
-    min: number;
-    max: number;
-    step: number;
-    unit: string;
-    onChange: (value: number) => void;
-  }) => (
-    <Box sx={{ mb: 2 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-        <Typography variant="caption" color="text.secondary">
-          {label}
-        </Typography>
-        <Typography variant="caption" color="primary">
-          {value.toFixed(step < 1 ? 1 : 0)} {unit}
-        </Typography>
-      </Box>
-      <Slider
-        value={value}
-        min={min}
-        max={max}
-        step={step}
-        onChange={(_, v) => onChange(v as number)}
-        size="small"
-        sx={{
-          color: '#4fc3f7',
-          '& .MuiSlider-thumb': {
-            width: 14,
-            height: 14,
-          },
-        }}
-      />
-    </Box>
-  );
-
   return (
     <Box>
       {/* Water Properties */}
@@ -103,7 +140,7 @@ export function EnvironmentPanel() {
           </Typography>
         </AccordionSummary>
         <AccordionDetails>
-          <SliderWithLabel
+          <NumberField
             label="Temperature"
             value={environment.waterProperties.temperature}
             min={0}
@@ -112,8 +149,7 @@ export function EnvironmentPanel() {
             unit="°C"
             onChange={(v) => handleWaterPropertyChange('temperature', v)}
           />
-
-          <SliderWithLabel
+          <NumberField
             label="Salinity"
             value={environment.waterProperties.salinity}
             min={0}
@@ -122,8 +158,7 @@ export function EnvironmentPanel() {
             unit="PSU"
             onChange={(v) => handleWaterPropertyChange('salinity', v)}
           />
-
-          <SliderWithLabel
+          <NumberField
             label="Sea State"
             value={environment.waterProperties.seaState}
             min={0}
@@ -132,8 +167,7 @@ export function EnvironmentPanel() {
             unit=""
             onChange={(v) => handleWaterPropertyChange('seaState', v)}
           />
-
-          <SliderWithLabel
+          <NumberField
             label="pH"
             value={environment.waterProperties.pH}
             min={7.0}

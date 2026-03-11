@@ -2,6 +2,8 @@
 
 Reference: **DOSITS “Sonar Equation Example: Active Sonar”** and **docs/single_reference_validation.md.pdf**.
 
+**Full explanation of how we test, all inputs, outputs, and expected vs real:** see **[how-we-test.md](how-we-test.md)**.
+
 ---
 
 ## 1. Sound speed (Mackenzie equation) — 2 tests
