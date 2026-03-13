@@ -15,12 +15,19 @@ let flushScheduled = false;
 /** When true, next flush must not overwrite waypointQueue (Start just set it); cleared after that flush. */
 let skipNextQueueFlush = false;
 
+/** Throttle UI updates to ~20 Hz to avoid 60fps React re-renders (physics still runs at 60fps). */
+const PLATFORM_FLUSH_INTERVAL_MS = 50;
+let lastFlushTime = 0;
+
 function scheduleFlush(): void {
   if (flushScheduled || !pendingStateRef) return;
+  const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  if (now - lastFlushTime < PLATFORM_FLUSH_INTERVAL_MS) return;
   flushScheduled = true;
   requestAnimationFrame(() => {
     flushScheduled = false;
     if (pendingStateRef) {
+      lastFlushTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
       const applyQueue = !skipNextQueueFlush;
       if (skipNextQueueFlush) skipNextQueueFlush = false;
       usePlatformStore.setState({
@@ -32,7 +39,7 @@ function scheduleFlush(): void {
   });
 }
 
-/** Call from simulation loop to schedule a flush in the next frame (do not call flushPendingPlatformState directly — it triggers update depth). */
+/** Call from simulation loop to schedule a flush (throttled to ~20 Hz to reduce lag). */
 export function flushPendingPlatformState(): void {
   scheduleFlush();
 }

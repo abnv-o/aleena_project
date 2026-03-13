@@ -25,7 +25,6 @@ function createNewSensor(overrides?: Partial<Sensor>): Sensor {
   const id = `sensor-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
   const count = 1; // Caller can pass name in overrides
   return {
-    id,
     name: overrides?.name ?? `Sensor ${count}`,
     type: 'active',
     frequency: 3500,

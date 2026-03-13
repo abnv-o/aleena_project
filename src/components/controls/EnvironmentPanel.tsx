@@ -98,8 +98,9 @@ function NumberField({
 }
 
 export function EnvironmentPanel() {
-  const { environment, setWaterProperties, generateNewBathymetry } =
-    useEnvironmentStore();
+  const environment = useEnvironmentStore((s) => s.environment);
+  const setWaterProperties = useEnvironmentStore((s) => s.setWaterProperties);
+  const generateNewBathymetry = useEnvironmentStore((s) => s.generateNewBathymetry);
 
   const [bathymetrySettings, setBathymetrySettings] = useState({
     width: environment.bathymetry.width,

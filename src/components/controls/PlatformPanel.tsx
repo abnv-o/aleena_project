@@ -98,7 +98,10 @@ function ControlField({
 }
 
 export function PlatformPanel() {
-  const { platform, controls, setControls, setDepth } = usePlatformStore();
+  const platform = usePlatformStore((s) => s.platform);
+  const controls = usePlatformStore((s) => s.controls);
+  const setControls = usePlatformStore((s) => s.setControls);
+  const setDepth = usePlatformStore((s) => s.setDepth);
 
   const handleControlChange = (control: 'throttle' | 'rudder' | 'dive', value: number) => {
     setControls({ [control]: value });

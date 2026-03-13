@@ -13,7 +13,9 @@ import { useSimulationStore } from '../../store';
 import type { ViewportConfig } from '../../types';
 
 export function ViewportPanel() {
-  const { viewport, setViewportConfig, setCameraMode } = useSimulationStore();
+  const viewport = useSimulationStore((s) => s.viewport);
+  const setViewportConfig = useSimulationStore((s) => s.setViewportConfig);
+  const setCameraMode = useSimulationStore((s) => s.setCameraMode);
 
   const ToggleOption = ({
     label,

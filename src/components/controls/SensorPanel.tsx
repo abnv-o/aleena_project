@@ -23,6 +23,91 @@ import { useSensorStore, useEnvironmentStore } from '../../store';
 import type { Sensor } from '../../types';
 import { transmissionLoss, geometricSpreadingLoss, ambientNoiseLevel } from '../../core/physics/acoustics';
 
+/** Stable component so React doesn't remount on parent re-render and revert value to store default (e.g. 3500). */
+function NumberField({
+  label,
+  value,
+  min,
+  max,
+  step,
+  unit,
+  onChange,
+  logarithmic = false,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  unit: string;
+  onChange: (value: number) => void;
+  logarithmic?: boolean;
+}) {
+  const [inputText, setInputText] = useState(String(value));
+  const [focused, setFocused] = useState(false);
+
+  useEffect(() => {
+    if (!focused) setInputText(String(value));
+  }, [value, focused]);
+
+  const commitValue = (raw: string) => {
+    const parsed = parseFloat(raw);
+    if (!Number.isNaN(parsed)) {
+      const clamped = Math.min(max, Math.max(min, parsed));
+      const stepped = step < 1
+        ? Math.round(clamped / step) * step
+        : Math.round(clamped / step) * step;
+      const final = Math.min(max, Math.max(min, stepped));
+      onChange(final);
+      setInputText(String(final));
+    } else {
+      setInputText(String(value));
+    }
+    setFocused(false);
+  };
+
+  return (
+    <Box sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+      <Typography variant="caption" color="text.secondary" sx={{ minWidth: 140 }}>
+        {label}
+      </Typography>
+      <TextField
+        size="small"
+        value={focused ? inputText : value}
+        onChange={(e) => {
+          if (focused) setInputText(e.target.value);
+          else {
+            const v = parseFloat(e.target.value);
+            if (!Number.isNaN(v)) {
+              const clamped = Math.min(max, Math.max(min, v));
+              onChange(clamped);
+            }
+          }
+        }}
+        onFocus={() => setFocused(true)}
+        onBlur={() => commitValue(inputText)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur();
+        }}
+        inputProps={{
+          type: 'number',
+          min,
+          max,
+          step,
+          style: { width: 88, textAlign: 'right', fontSize: '0.875rem' },
+        }}
+        sx={{
+          '& .MuiInputBase-root': { backgroundColor: 'rgba(0,0,0,0.2)' },
+          '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(79, 195, 247, 0.4)' },
+        }}
+      />
+      <Typography variant="caption" color="primary">
+        {logarithmic && value >= 1000 ? `k${unit}` : unit}
+      </Typography>
+    </Box>
+  );
+}
+
 function useAcousticMetrics(sensor: Sensor | null) {
   const environment = useEnvironmentStore((s) => s.environment);
   const detections = useSensorStore((s) => s.detections);
@@ -116,97 +201,18 @@ function AcousticMetricsBlock({ sensor }: { sensor: Sensor }) {
 }
 
 export function SensorPanel() {
-  const { sensors, addSensor, updateSensor, setSensorActive, setActiveSensor, activeSensorId } =
-    useSensorStore();
+  // Subscribe only to sensors map and active id so we don't re-render on every reading/detection
+  const sensors = useSensorStore((s) => s.sensors);
+  const addSensor = useSensorStore((s) => s.addSensor);
+  const updateSensor = useSensorStore((s) => s.updateSensor);
+  const setSensorActive = useSensorStore((s) => s.setSensorActive);
+  const setActiveSensor = useSensorStore((s) => s.setActiveSensor);
+  const activeSensorId = useSensorStore((s) => s.activeSensorId);
 
   const sensorArray = Array.from(sensors.values());
 
   const handleSensorUpdate = (id: string, field: keyof Sensor, value: any) => {
     updateSensor(id, { [field]: value });
-  };
-
-  const NumberField = ({
-    label,
-    value,
-    min,
-    max,
-    step,
-    unit,
-    onChange,
-    logarithmic = false,
-  }: {
-    label: string;
-    value: number;
-    min: number;
-    max: number;
-    step: number;
-    unit: string;
-    onChange: (value: number) => void;
-    logarithmic?: boolean;
-  }) => {
-    const [inputText, setInputText] = useState(String(value));
-    const [focused, setFocused] = useState(false);
-
-    useEffect(() => {
-      if (!focused) setInputText(String(value));
-    }, [value, focused]);
-
-    const commitValue = (raw: string) => {
-      const parsed = parseFloat(raw);
-      if (!Number.isNaN(parsed)) {
-        const clamped = Math.min(max, Math.max(min, parsed));
-        const stepped = step < 1
-          ? Math.round(clamped / step) * step
-          : Math.round(clamped / step) * step;
-        const final = Math.min(max, Math.max(min, stepped));
-        onChange(final);
-        setInputText(String(final));
-      } else {
-        setInputText(String(value));
-      }
-      setFocused(false);
-    };
-
-    return (
-      <Box sx={{ mb: 1.5, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-        <Typography variant="caption" color="text.secondary" sx={{ minWidth: 140 }}>
-          {label}
-        </Typography>
-        <TextField
-          size="small"
-          value={focused ? inputText : value}
-          onChange={(e) => {
-            if (focused) setInputText(e.target.value);
-            else {
-              const v = parseFloat(e.target.value);
-              if (!Number.isNaN(v)) {
-                const clamped = Math.min(max, Math.max(min, v));
-                onChange(clamped);
-              }
-            }
-          }}
-          onFocus={() => setFocused(true)}
-          onBlur={() => commitValue(inputText)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') e.currentTarget.blur();
-          }}
-          inputProps={{
-            type: 'number',
-            min,
-            max,
-            step,
-            style: { width: 88, textAlign: 'right', fontSize: '0.875rem' },
-          }}
-          sx={{
-            '& .MuiInputBase-root': { backgroundColor: 'rgba(0,0,0,0.2)' },
-            '& .MuiOutlinedInput-notchedOutline': { borderColor: 'rgba(79, 195, 247, 0.4)' },
-          }}
-        />
-        <Typography variant="caption" color="primary">
-          {logarithmic && value >= 1000 ? `k${unit}` : unit}
-        </Typography>
-      </Box>
-    );
   };
 
   return (
