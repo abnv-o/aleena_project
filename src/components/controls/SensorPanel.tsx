@@ -115,20 +115,56 @@ function useAcousticMetrics(sensor: Sensor | null) {
   const seaState = wp.seaState ?? 2;
   const shippingLevel = 4;
 
+  const sensorMaxRange = sensor?.maxRange;
+  const sensorFrequency = sensor?.frequency;
+  const sensorBandwidth = sensor?.bandwidth;
+  const sensorId = sensor?.id;
+  const sensorDetectionThreshold = sensor?.detectionThreshold;
+  const beamHoriz = sensor?.beamPattern?.horizontalWidth ?? 120;
+  const beamVert = sensor?.beamPattern?.verticalWidth ?? 20;
+
   return useMemo(() => {
-    if (!sensor) return null;
-    const rangeMax = sensor.maxRange;
-    const freq = sensor.frequency;
-    const TL_dB = transmissionLoss(rangeMax, freq, wp, 'spherical');
-    const spreadingLoss_dB = geometricSpreadingLoss(rangeMax, 'spherical');
+    if (
+      !sensor ||
+      sensorMaxRange == null ||
+      sensorFrequency == null ||
+      sensorBandwidth == null ||
+      !sensorId ||
+      sensorDetectionThreshold == null
+    ) {
+      return null;
+    }
+    
+    const TL_dB = transmissionLoss(sensorMaxRange, sensorFrequency, wp, 'spherical');
+    const spreadingLoss_dB = geometricSpreadingLoss(sensorMaxRange, 'spherical');
     const absorptionLoss_dB = TL_dB - spreadingLoss_dB;
-    const NL_dB = ambientNoiseLevel(freq, seaState, shippingLevel);
-    const totalNoiseLevel_dB = NL_dB + 10 * Math.log10(sensor.bandwidth);
-    const sensorDetections = detections.filter((d) => d.sensorId === sensor.id);
-    const latestDet = sensorDetections[sensorDetections.length - 1];
-    const snr_dB = latestDet
-      ? latestDet.signalExcess + sensor.detectionThreshold
-      : null;
+    const NL_dB = ambientNoiseLevel(sensorFrequency, seaState, shippingLevel);
+    const totalNoiseLevel_dB = NL_dB + 10 * Math.log10(sensorBandwidth);
+    
+    // Dynamic Directivity Index calculation (planar array approximation)
+    const directivityIndex = 10 * Math.log10(41253 / Math.max(1, beamHoriz * beamVert));
+    
+    let referenceSnr_dB: number;
+    let echoLevel_dB: number | null = null;
+    
+    if (sensor?.type === 'active') {
+      const refTargetStrength = 15;
+      const sourceLevel = sensor.sourceLevel ?? 220;
+      
+      // Echo level is the signal arriving back at the receiver before noise is applied
+      echoLevel_dB = sourceLevel - 2 * TL_dB + refTargetStrength;
+      const signalExcess = echoLevel_dB - (totalNoiseLevel_dB - directivityIndex) - sensorDetectionThreshold;
+      referenceSnr_dB = signalExcess + sensorDetectionThreshold;
+    } else {
+      const refRadiatedNoise = 130;
+      
+      // Radiated signal arriving at receiver before noise is applied
+      echoLevel_dB = refRadiatedNoise - TL_dB;
+      const signalExcess = echoLevel_dB - (totalNoiseLevel_dB - directivityIndex) - sensorDetectionThreshold;
+      referenceSnr_dB = signalExcess + sensorDetectionThreshold;
+    }
+
+    const sensorDetections = detections.filter((d) => d.sensorId === sensorId);
 
     const round2 = (v: number) => Math.round(v * 100) / 100;
     return {
@@ -136,12 +172,27 @@ function useAcousticMetrics(sensor: Sensor | null) {
       spreadingLoss_dB: round2(spreadingLoss_dB),
       absorptionLoss_dB: round2(absorptionLoss_dB),
       totalNoiseLevel_dB: round2(totalNoiseLevel_dB),
-      maxDetectionRange_m: sensor.maxRange,
+      directivityIndex_dB: round2(directivityIndex),
+      echoLevel_dB: echoLevel_dB != null ? round2(echoLevel_dB) : null,
+      maxDetectionRange_m: sensorMaxRange,
       detectionCount: sensorDetections.length,
       detectionResult: sensorDetections.length > 0 ? 'detected' : 'no_detections',
-      snr_dB: snr_dB != null ? round2(snr_dB) : null,
+      snr_dB: round2(referenceSnr_dB),
     };
-  }, [sensor, wp, seaState, shippingLevel, detections]);
+  }, [
+    sensor, 
+    sensorMaxRange, 
+    sensorFrequency, 
+    sensorBandwidth, 
+    sensorId, 
+    sensorDetectionThreshold,
+    beamHoriz,
+    beamVert,
+    wp, 
+    seaState, 
+    shippingLevel, 
+    detections
+  ]);
 }
 
 function AcousticMetricsBlock({ sensor }: { sensor: Sensor }) {
@@ -153,10 +204,11 @@ function AcousticMetricsBlock({ sensor }: { sensor: Sensor }) {
     { label: 'Spreading loss', value: `${metrics.spreadingLoss_dB} dB` },
     { label: 'Absorption loss', value: `${metrics.absorptionLoss_dB} dB` },
     { label: 'Total noise level', value: `${metrics.totalNoiseLevel_dB} dB` },
+    { label: 'Directivity Index (computed)', value: `${metrics.directivityIndex_dB} dB` },
+    { label: sensor.type === 'active' ? 'Echo Level (Signal Level)' : 'Received Signal Level', value: metrics.echoLevel_dB != null ? `${metrics.echoLevel_dB} dB` : '—' },
+    { label: 'Expected SNR (at max range)', value: `${metrics.snr_dB} dB` },
     { label: 'Max detection range', value: `${metrics.maxDetectionRange_m} m` },
-    { label: 'Detection result', value: metrics.detectionResult },
     { label: 'Active detections', value: metrics.detectionCount },
-    { label: 'Signal-to-noise ratio', value: metrics.snr_dB != null ? `${metrics.snr_dB} dB` : '—' },
   ];
 
   return (
